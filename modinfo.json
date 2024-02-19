@@ -1,0 +1,24 @@
+{
+    "defaults": {
+    "authors": "Siggles",
+    "source": "https://github.com/Siggless/bl-sdk-mods",
+    "supports":  [ "BL2", "TPS" ],
+    "license": "GNU GPLv3",
+  }
+  "mods": [
+    {
+      "name": "Alt Use Catch-a-Ride",
+      "description": "Adds alt use binds to Catch-a-Ride stations, to instantly deploy a vehicle.",
+      "types": ["Utility"],
+      "issues": "https://github.com/Siggless/bl-sdk-mods/issues",
+      "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/AltUseCatchARide",
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "https://github.com/Siggless/bl-sdk-mods/tree/main/AltUseCatchARide",
+      },
+      "requirements": {
+        "Enums": ">=1.0"
+      },
+    }
+  ],
+}
