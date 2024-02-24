@@ -6,31 +6,31 @@
         "license": "GNU GPLv3",
     },
     "mods": [
-    {
-        "name": "Alt Use Catch-a-Ride",
-        "description": "Adds alt use binds to Catch-a-Ride stations, to instantly deploy a vehicle.",
-        "types": ["Utility"],
-        "issues": "https://github.com/Siggless/bl-sdk-mods/issues",
-        "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/AltUseCatchARide",
-        "latest": "1.0.0",
-        "versions": {
-            "1.0.0": "https://github.com/Siggless/bl-sdk-mods/tree/main/AltUseCatchARide",
+        {
+            "name": "Alt Use Catch-a-Ride",
+            "description": "Adds alt use binds to Catch-a-Ride stations, to instantly deploy a vehicle.",
+            "types": ["Utility"],
+            "issues": "https://github.com/Siggless/bl-sdk-mods/issues",
+            "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/AltUseCatchARide",
+            "latest": "1.0.0",
+            "versions": {
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/tree/main/AltUseCatchARide",
+            },
+            "requirements": {
+                "Enums": ">=1.0"
+            },
         },
-        "requirements": {
-            "Enums": ">=1.0"
-        },
-    },
-    {
-        "name": "Less DOT Screams",
-        "description": "Player DOT (status effect) screams don't play unless shield is broken. To fully disable for certain characters, use 'Customizable Player Audio Muter' BLCMM text mod instead.",
-        "supports":  [ "BL2", "TPS" ,"AoDK"],
-        "types": ["Gameplay"],
-        "issues": "https://github.com/Siggless/bl-sdk-mods/issues",
-        "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/LessDOTScreams",
-        "latest": "1.0.0",
-        "versions": {
-            "1.0.0": "https://github.com/Siggless/bl-sdk-mods/tree/main/LessDOTScreams",
-        },
-    }
-  ]
+        {
+            "name": "Less DOT Screams",
+            "description": "Player DOT (status effect) screams don't play unless shield is broken. To fully disable for certain characters, use 'Customizable Player Audio Muter' BLCMM text mod instead.",
+            "supports":  [ "BL2", "TPS" ,"AoDK"],
+            "types": ["Gameplay"],
+            "issues": "https://github.com/Siggless/bl-sdk-mods/issues",
+            "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/LessDOTScreams",
+            "latest": "1.0.0",
+            "versions": {
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/tree/main/LessDOTScreams",
+            },
+        }
+    ]
 }
