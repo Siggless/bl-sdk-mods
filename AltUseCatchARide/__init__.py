@@ -21,8 +21,8 @@ except ImportError:
     raise ImportError("Alt Use Catch-a-Ride requires at least Enums version 1.0")
 
 
-GAME_FAMILY_DICT: Dict[Game, Dict[str,(VehicleFamilyDefinition, str, VSSUIDefinition)]] = {
-    Game.BL2:{
+FAMILY_DICT: Dict[Game, Dict[str,(VehicleFamilyDefinition, str, VSSUIDefinition)]] = {
+    Game.BL2: {
         "Technical":("GD_Globals.VehicleSpawnStation.VehicleFamily_BanditTechnical","VehicleFamily_BanditTechnical",[
             "GD_Globals.VehicleSpawnStation.VSSUI_SawBladeTechnical",
             "GD_Globals.VehicleSpawnStation.VSSUI_CatapultTechnical"
@@ -31,7 +31,6 @@ GAME_FAMILY_DICT: Dict[Game, Dict[str,(VehicleFamilyDefinition, str, VSSUIDefini
             "GD_Globals.VehicleSpawnStation.VSSUI_MGRunner",
             "GD_Globals.VehicleSpawnStation.VSSUI_RocketRunner"
             ]),
-        # Might need to Load and KeepAlive these DLC ones - nah just works
         "Sandskiff":("GD_OrchidPackageDef.Vehicles.VehicleFamily_Hovercraft","VehicleFamily_Hovercraft",[
             "GD_OrchidPackageDef.Vehicles.VSSUI_HarpoonHovercraft","GD_OrchidPackageDef.Vehicles.VSSUI_RocketHovercraft",
             "GD_OrchidPackageDef.Vehicles.VSSUI_SawBladeHovercraft"
@@ -41,9 +40,8 @@ GAME_FAMILY_DICT: Dict[Game, Dict[str,(VehicleFamilyDefinition, str, VSSUIDefini
             "GD_SagePackageDef.Vehicles.VSSUI_IncendiaryFanBoat",
             "GD_SagePackageDef.Vehicles.VSSUI_ShockFanBoat"
             ]),
-        },
-    # Haven't tested TPS
-    Game.TPS:{
+    },
+    Game.TPS: {
         "MoonBuggy":("GD_Globals.VehicleSpawnStation.VehicleFamily_MoonBuggy","VehicleFamily_MoonBuggy",[
             "GD_Globals.VehicleSpawnStation.VSSUI_LaserBuggy",
             "GD_Globals.VehicleSpawnStation.VSSUI_MissileBuggy"
@@ -52,11 +50,11 @@ GAME_FAMILY_DICT: Dict[Game, Dict[str,(VehicleFamilyDefinition, str, VSSUIDefini
             "GD_Globals.VehicleSpawnStation.VSSUI_StingRay_CryoRocket",
             "GD_Globals.VehicleSpawnStation.VSSUI_StingRay_FlakBurst"
             ]),
-        }    
     }
+}[Game.GetCurrent()]
 DEFAULTS_DICT = {
     "Game.BL2" : "Runner",
-    "Game.TPS ": "MoonBuggy",
+    "Game.TPS" : "MoonBuggy",
     # DLC codes override the game defaults
     "Orchid" : "Sandskiff",
     "Sage" : "Fanboat",
@@ -70,27 +68,28 @@ class AltUseCatchARide(SDKMod):
         "Adds alt use binds to Catch-a-Ride stations, to instantly deploy a vehicle.\n\n"
         "Options to teleport to vehicle on spawn, and choose a vehicle family (including DLC vehicles)."
     )
-    Version: str = "1.0.0"
+    Version: str = "1.0.1"
 
     Types: ModTypes = ModTypes.Utility
     SaveEnabledState: EnabledSaveType = EnabledSaveType.LoadWithSettings
     SupportedGames: Game = Game.BL2 | Game.TPS  # NOT AoDK
 
     customIcon:InteractionIconDefinition
-    FAMILY_DICT: Dict[str,(VehicleFamilyDefinition, str, VSSUIDefinition)]
     MAX_SLOTS:int=2
 
-    vehicleType:str = 0
-    autoTeleport:bool = 0
+    vehicleType:str = "Default"
+    autoTeleport:bool = False
     
 
     def __init__(self) -> None:
         super().__init__()
+        spinnerChoices = list(FAMILY_DICT.keys())
+        spinnerChoices.append("Default")
         self.SpinnerVehicleType = Options.Spinner(
             Caption="Vehicle Type",
             Description="The type of vehicle to spawn. Default is the last chosen vehicle.",
-            StartingValue="Runner",
-            Choices=["Default", "Technical", "Runner","Sandskiff","Fanboat"]
+            StartingValue="Default",
+            Choices=spinnerChoices
         )
         self.BoolAutoTeleport = Options.Boolean(
             Caption="Auto Teleport",
@@ -112,7 +111,6 @@ class AltUseCatchARide(SDKMod):
     def Enable(self) -> None:
         super().Enable()
         unrealsdk.GetEngine().GamePlayers[0].Actor.StopUsingVehicleSpawnStationTerminal()
-        self.FAMILY_DICT=GAME_FAMILY_DICT[Game.GetCurrent()]
         self.CreateIcon()
 
     def CreateIcon(self) -> None:
@@ -192,9 +190,9 @@ class AltUseCatchARide(SDKMod):
         
         # Get the vehicle loadout - I'm just defaulting to the first option for now!
         vuiDef:VSSUIDefinition
-        for i in self.FAMILY_DICT:
-            if self.FAMILY_DICT[i][1] == familyDef.Name:
-                vuiDef=unrealsdk.FindObject("VSSUIDefinition", self.FAMILY_DICT[i][2][0])
+        for i in FAMILY_DICT:
+            if FAMILY_DICT[i][1] == familyDef.Name:
+                vuiDef=unrealsdk.FindObject("VSSUIDefinition", FAMILY_DICT[i][2][0])
                 break
         if vuiDef is None:
             unrealsdk.Log("["+self.Name+"] No loadout for vehicle family "+ str(familyDef.Name))
@@ -249,11 +247,11 @@ class AltUseCatchARide(SDKMod):
         Or if not family has been chosen in-game yet, then a default family for the current DLC.
         """
         familyDef:VehicleFamilyDefinition
-        if self.vehicleType == "Default" or self.vehicleType not in self.FAMILY_DICT:
+        if self.vehicleType == "Default" or self.vehicleType not in FAMILY_DICT:
             # Default to the family given by the game
             familyDef = PC.GetWillowGlobals().GetVehicleLifetimeManager().CurrentVehicleFamily
         else:
-            familyDef = unrealsdk.FindObject("VehicleFamilyDefinition", self.FAMILY_DICT[self.vehicleType][0])
+            familyDef = unrealsdk.FindObject("VehicleFamilyDefinition", FAMILY_DICT[self.vehicleType][0])
             
         if familyDef is None:
             # No vehicle family has been chosen yet in-game, so we need to set a default
@@ -264,7 +262,7 @@ class AltUseCatchARide(SDKMod):
                     chosenDefaultFamily = DEFAULTS_DICT[i]
                     break
             #unrealsdk.Log(f"[{self.Name}] Vehicle family {str(familyDef)} not found! Defaulting to {chosenDefaultFamily}.")
-            familyDef = unrealsdk.FindObject("VehicleFamilyDefinition", self.FAMILY_DICT[chosenDefaultFamily][0])
+            familyDef = unrealsdk.FindObject("VehicleFamilyDefinition", FAMILY_DICT[chosenDefaultFamily][0])
             
         return familyDef
 
