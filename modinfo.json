@@ -2,35 +2,49 @@
     "defaults": {
         "authors": "Siggles",
         "source": "https://github.com/Siggless/bl-sdk-mods",
-        "supports":  [ "BL2", "TPS" ],
-        "license": "GNU GPLv3",
+        "supports": ["BL2", "TPS"],
+        "issues": "https://github.com/Siggless/bl-sdk-mods/issues",
+        "license": "GNU GPLv3"
     },
     "mods": [
         {
             "name": "Alt Use Catch-a-Ride",
             "description": "Adds alt use binds to Catch-a-Ride stations, to instantly deploy a vehicle.",
             "types": ["Utility"],
-            "issues": "https://github.com/Siggless/bl-sdk-mods/issues",
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/AltUseCatchARide",
-            "latest": "1.0.0",
+            "latest": "1.0.1",
             "versions": {
                 "1.0.0": "https://github.com/Siggless/bl-sdk-mods/tree/main/AltUseCatchARide",
+                "1.0.1": "https://github.com/Siggless/bl-sdk-mods/raw/main/AltUseCatchARide/AltUseCatchARide.zip"
             },
             "requirements": {
                 "Enums": ">=1.0"
-            },
+            }
         },
         {
             "name": "Less DOT Screams",
             "description": "Player DOT (status effect) screams don't play unless shield is broken. To fully disable for certain characters, use 'Customizable Player Audio Muter' BLCMM text mod instead.",
-            "supports":  [ "BL2", "TPS" ,"AoDK"],
+            "supports": ["BL2", "TPS", "AoDK"],
             "types": ["Gameplay"],
-            "issues": "https://github.com/Siggless/bl-sdk-mods/issues",
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/LessDOTScreams",
             "latest": "1.0.0",
             "versions": {
-                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/tree/main/LessDOTScreams",
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/LessDOTScreams/LessDOTScreams.zip"
+            }
+        },
+        {
+            "name": "Jump To Level Challenges",
+            "description": "Adds a keybind to the Challenges menu to jump to the current level's challenges.",
+            "supports": ["BL2", "TPS", "AoDK"],
+            "types": ["Utility"],
+            "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/JumpToLevelChallenges",
+            "latest": "1.0.0",
+            "versions": {
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/JumpToLevelChallenges/JumpToLevelChallenges.zip"
             },
+            "requirements": {
+                "Enums": ">=1.0"
+            }
         }
     ]
 }
