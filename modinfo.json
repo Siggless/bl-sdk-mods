@@ -2,7 +2,7 @@
     "defaults": {
         "authors": "Siggles",
         "source": "https://github.com/Siggless/bl-sdk-mods",
-        "supports": ["BL2", "TPS"],
+        "supports": ["BL2", "TPS", "AoDK"],
         "issues": "https://github.com/Siggless/bl-sdk-mods/issues",
         "license": "GNU GPLv3"
     },
@@ -10,6 +10,7 @@
         {
             "name": "Alt Use Catch-a-Ride",
             "description": "Adds alt use binds to Catch-a-Ride stations, to instantly deploy a vehicle.",
+            "supports": ["BL2", "TPS"],
             "types": ["Utility"],
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/AltUseCatchARide",
             "latest": "1.0.1",
@@ -22,9 +23,42 @@
             }
         },
         {
+            "name": "Badass Rank Lock",
+            "tagline": "Prevents badass rank changing and most challenge pop-ups.",
+            "description": "Prevents badass rank increasing, and non-level-specific challenge reward pop-ups from showing.\nHas a setting for preventing bonus stats being enabled.\nIntended for use with mods that would otherwise give you loads of rank.",
+            "types": ["Utility"],
+            "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/BARLock",
+            "latest": "1.0.0",
+            "versions": {
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/BARLock/BARLock.zip"
+            }
+        },
+        {
+            "name": "Grenade Mod Quick Switcher",
+            "tagline": "Adds a keybind that cycles through grenade mods marked as favourite.",
+            "description": "Adds a keybind that cycles through grenade mods marked as favourite.\nCycles in the order that items were added to the backpack, or unequipped.",
+            "types": ["Utility"],
+            "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/GrenadeModQuickSwitcher",
+            "latest": "1.0.0",
+            "versions": {
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/GrenadeModQuickSwitcher/GrenadeModQuickSwitcher.zip"
+            }
+        },
+        {
+            "name": "Sod Off, Skeleton Mages!",
+            "description": "Skeleton Mages have less chance to cloak each time they appear.",
+            "supports": ["BL2", "AoDK"],
+            "types": ["Utility"],
+            "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/SodOffSkeletonMages",
+            "latest": "1.0.0",
+            "versions": {
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/SodOffSkeletonMages/SodOffSkeletonMages.zip"
+            }
+        },
+        {
             "name": "Less DOT Screams",
-            "description": "Player DOT (status effect) screams don't play unless shield is broken. To fully disable for certain characters, use 'Customizable Player Audio Muter' BLCMM text mod instead.",
-            "supports": ["BL2", "TPS", "AoDK"],
+            "tagline": "Player DOT (status effect) screams don't play unless shield is broken.",
+            "description": "Player DOT (status effect) screams don't play unless shield is broken.\nTo fully disable for certain characters, use 'Customizable Player Audio Muter' BLCMM text mod instead.",
             "types": ["Gameplay"],
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/LessDOTScreams",
             "latest": "1.0.0",
@@ -35,7 +69,6 @@
         {
             "name": "Jump To Level Challenges",
             "description": "Adds a keybind to the Challenges menu to jump to the current level's challenges.",
-            "supports": ["BL2", "TPS", "AoDK"],
             "types": ["Utility"],
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/JumpToLevelChallenges",
             "latest": "1.0.0",
