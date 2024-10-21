@@ -97,7 +97,7 @@ POPDEF_PREFIX_EXCLUDED_FROM_FOV_CHECKS = [  # Enemies that spawn cloaked so look
 class SpawnPool(enum.IntEnum):
     DEN = enum.auto()
     LEVEL = enum.auto()
-    BIOME = enum.auto()
+    DLC = enum.auto()
     GAME = enum.auto()
 
 class AmbientSpawns(ModMenu.SDKMod):
@@ -135,6 +135,7 @@ class AmbientSpawns(ModMenu.SDKMod):
     megaMixActive = False
     pool: SpawnPool = None
     currentDLC: DLC = DLC.BL2
+    heliosActor = None
 
     Keybinds = [ModMenu.Keybind("Spawn Now", "P")]
 
@@ -193,16 +194,13 @@ class AmbientSpawns(ModMenu.SDKMod):
         )
         self.megaMixSwitch = ModMenu.Options.Boolean(
             Caption="Mega Mix Spawns",
-            Description="Whether enemies will be loaded from all maps and spawn in maps they don't originate in. This will cause map data to load on some initial player spawns!",
+            Description="Whether enemies can subsituted for similar variants from other DLCS, e.g. Psychos with Bikers from Torgue DLC.",
             StartingValue=False,
         )
         self.spawnPoolSpinner = ModMenu.Options.Spinner(
             Caption="Spawn Pools",
             Description="Which enemies are available for ambient spawns." \
-                    "\nDen - Enemies that usually spawn from the spawn point." \
-                    "\nLevel - Enemies that can spawn anywhere in the level." \
-                    "\nBiome - Enemies that can spawn in any levels in the current DLC or main game area." \
-                    "\nGame - Pretty much all regular enemies from all levels and DLCs.",
+                    "\nChanging this may require a game restart.",
             StartingValue=SpawnPool.LEVEL.name,
             Choices=[x.name for x in SpawnPool],
         )
@@ -221,7 +219,7 @@ class AmbientSpawns(ModMenu.SDKMod):
             self.distanceMinSlider,
             self.distanceMaxSlider,
             self.provokeDenSwitch,
-            self.megaMixSwitch,
+            #self.megaMixSwitch,
             self.spawnPoolSpinner,
             self.customSpawnSlider,
         ]
@@ -246,13 +244,14 @@ class AmbientSpawns(ModMenu.SDKMod):
             self.megaMixActive = new_value
         elif option == self.spawnPoolSpinner:
             if self.pool and \
-                (self.pool < SpawnPool.BIOME and SpawnPool[new_value] >= SpawnPool.BIOME or \
-                self.pool >= SpawnPool.BIOME and SpawnPool[new_value] < SpawnPool.BIOME):
+                (self.pool < SpawnPool.DLC and SpawnPool[new_value] >= SpawnPool.DLC or \
+                self.pool >= SpawnPool.DLC and SpawnPool[new_value] < SpawnPool.DLC):
                 TrainingBox(
                     Title="Restart Required",
                     Message="A game relaunch is required for these changes to take effect.\n" \
                         "If enabled, enemies from all levels are loaded upon entering the main menu.\n" \
                         "This will increase load time and memory usage, and may cause instability!",
+                    MinDuration=1
                 ).Show()
             self.pool = SpawnPool[new_value]
         elif option == self.customSpawnSlider:
@@ -301,7 +300,7 @@ class AmbientSpawns(ModMenu.SDKMod):
         if unrealsdk.GetEngine().GetCurrentWorldInfo().GetStreamingPersistentMapName() != "menumap":
             return True
         Log("MENU MAP LOADED")
-        if self.megaMixActive or self.pool >= SpawnPool.BIOME:
+        if self.megaMixActive or self.pool >= SpawnPool.DLC:
             Log("Loading MEGA MIX PACKAGES")
             # Load all enemies from all DLCs
             for deeellcee in level_packages.combat_packages_by_DLC:
@@ -377,12 +376,18 @@ class AmbientSpawns(ModMenu.SDKMod):
         Creates the available den list for the current map, and filters out custom spawn list to those
          available in the loaded map too.
         """
+        self.heliosActor = None
+        for x in unrealsdk.FindAll("InterpActor"):
+            if x.ReplicatedMesh and x.ReplicatedMesh.Name == "MoonBase02":
+                self.heliosActor = x
+                break
+        
         allDens = unrealsdk.FindAll("PopulationOpportunityDen")
         #self.spawns = unrealsdk.FindAll("WillowPopulationPoint")
         self.mapDens = [x for x in allDens if
                         x.Location and x.SpawnPoints and x.SpawnData and (not x.bIsCriticalActor)
                         and (x.SpawnData.PopulationDefName not in BLACKLIST_POPDEFS)
-                        and any(y for y in x.SpawnPoints)   # and y.PointDef - No because threshers have
+                        and any(y for y in x.SpawnPoints)   # and y.PointDef - No because threshers have no PointDef
                         ]
         
         if self.pool >= SpawnPool.LEVEL:
@@ -396,7 +401,7 @@ class AmbientSpawns(ModMenu.SDKMod):
             Log(self.mapNormalSpawns)
                 
             self.mapCustomSpawns = []
-            if self.pool == SpawnPool.BIOME and deeellcee:
+            if self.pool == SpawnPool.DLC and deeellcee:
                 self.mapCustomSpawns = self.mapCustomSpawns = [x for x in custom_spawns.customList[deeellcee] if x.LoadObjects(mapName.lower())]
             elif self.pool == SpawnPool.GAME:
                 for dlcCustomSpawns in custom_spawns.customList.values():
@@ -570,12 +575,18 @@ class AmbientSpawns(ModMenu.SDKMod):
 
         if spawn.PointDef:
             Log("Chose " + spawn.PointDef.Name if spawn.PointDef else spawn.Name)
-        loc = spawn.Location
-        rot = spawn.Rotation
+        
+        if spawn.StretchyActor:
+            # Fix up the Helios spawn anim - and maybe some others(???)
+            # Some spawns play the giant muzzle flash instead IDK why...
+            loc = spawn.StretchyActor.Location
+            rot = spawn.StretchyActor.Rotation
+        else:
+            loc = spawn.Location
+            rot = spawn.Rotation
         locTuple = (loc.X, loc.Y, loc.Z)
         rotTuple = (rot.Pitch, rot.Yaw, rot.Roll)
-            
-        #spawnedPawn = popMaster.SpawnActor(factory, spawn, locTuple, rotTuple, gameStage, 1)
+        
         # This function ensures that the spawns are destroyed on map change - but requires a den
         spawnedPawn = popMaster.SpawnActorFromOpportunity(factory,
                                             den,
@@ -584,15 +595,13 @@ class AmbientSpawns(ModMenu.SDKMod):
                                             0,0,    # Setting oppIndex from GetOpportunityIndex crashes sometimes - bullymongs
                                             False,False
                                             )
-        # TODO figure out if killing all spawned enemies stops the map change crash. Nick roguelands
+        # TODO figure out if killing all spawned enemies stops the map change crash. Store all spawnedPawns and nick roguelands kill all
 
-        # I hope you're not looking for any answers here, I just tried aaaall the functions...
+        # I hope you're not here looking for answers...
         if spawnedPawn:
             # Play the SpecialMove spawn animation
             spawn.ActorSpawned(spawnedPawn)
             spawnedPawn.MySpawnPoint = spawn
-            # TODO Fix Helios Moonshot anim playing at destination
-            # Have a look at accessing the anim objects from the spawn point defs
             
             # Start attacking the player on spawn
             mind = spawnedPawn.MyWillowMind
@@ -610,7 +619,7 @@ class AmbientSpawns(ModMenu.SDKMod):
                 denAI.AddTarget(PC.pawn)
                 denAI.NotifyAttackedBy(PC.pawn)
                         
-            spawnedPawn.PlayTaunt()    # Sometimes crashes because AK not loaded?
+            spawnedPawn.PlayTaunt()    # Sometimes crashes because AKEvents not loaded?
     
     def EndSpawning(self):
         self.isSpawning = False
@@ -621,7 +630,7 @@ class AmbientSpawns(ModMenu.SDKMod):
         duration = self.averageTimeForNextSpawn + randy
         if duration < MIN_TIME_DURATION:
             duration = MIN_TIME_DURATION
-        ShowChatMessage(self.Name, "Next duration " + str(duration))
+        #ShowChatMessage(self.Name, "Next duration " + str(duration))
         return duration
 
     def GetGameStage(self, PC, den=None):
@@ -671,9 +680,11 @@ def GetLocationWeight(PC, actor, testFOV:bool = False) -> int:
     dot = viewVector[0]*normLocation[0] + viewVector[1]*normLocation[1]
     
     if testFOV:
-        # Probably has no spawn animation so don't do it in front of player
-        #  I CBA with 3D Yaw Pitch Roll maths so just comparing Yaw
-        #  If looking sharply up or down, you might still see these
+        # Probably has no spawn animation so don't do it in front of player.
+        #  I CBA with 3D Yaw Pitch Roll maths so just comparing Yaw.
+        #  If looking sharply up or down, you might still see these.
+        #  Also we don't just spawn all the enemies at once anymore,
+        #   so the delay means you might turn and see this anyway :/
         if dot >= 0:
             return 0
     

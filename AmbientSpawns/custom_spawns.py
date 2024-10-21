@@ -27,8 +27,8 @@ BadassTagWeights = {
     Tag.MEDIUM: 40,
     Tag.BADASS: 50,
     Tag.ULTIMATE_BADASS: 20,
-    Tag.MINIBOSS: 50,
-    Tag.BOSS: 100
+    Tag.MINIBOSS: 10,
+    Tag.BOSS: 5
 }
 """Weights for selecting a spawn by Badass Tag"""
 
@@ -144,6 +144,11 @@ class CustomSpawn(Spawn):
         return factoryList
 
     def LoadObjects(self, mapNameLower) -> bool:
+        """ 
+        Tries to load the defined PopDef/Factory object for this spawn.
+        Also tries to store MegaMix PopDef lists, if enabled.
+        Returns whether successful (and therefore usable in the current map).
+        """
         if mapNameLower in self.map_blacklist:
             return False
         
@@ -347,17 +352,17 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                 CustomSpawn("Minions2",Tag.CHUMP,range(2,4),    popDef="GD_Population_Midget.Population.PopDef_MidgetMix_Regular"),
             ]),
             MultiSpawn("Friend & Goliaths",Tag.BADASS,customSpawnList=[
-                CustomSpawn("Friend",Tag.CHUMP,                     popDef="GD_Population_Midget.Population.PopDef_MidgetBadass"),
-                CustomSpawn("Goliaths",Tag.MEDIUM,range(1,4),       popDef="GD_Population_Goliath.Population.PopDef_GoliathMix_Regular"),
-                CustomSpawn("Big Goliaths",Tag.BADASS,range(1,3),   popDef="GD_Population_Goliath.Population.PopDef_GoliathTurret"),
+                CustomSpawn("Friend",Tag.CHUMP,                 popDef="GD_Population_Midget.Population.PopDef_MidgetBadass"),
+                CustomSpawn("Goliaths",Tag.MEDIUM,range(1,4),   popDef="GD_Population_Goliath.Population.PopDef_GoliathMix_Regular"),
+                CustomSpawn("Big Goliath",Tag.BADASS,           popDef="GD_Population_Goliath.Population.PopDef_GoliathTurret"),
             ]),
             
-            # Flamers from Frostburn/Ice_P
+            # TODO Flamers from Frostburn/Ice_P
             
             PoolSpawn("Bandit Minibosses",Tag.MINIBOSS,customSpawnList=[
                 CustomSpawn("Doc Mercy",Tag.MINIBOSS,popDef="GD_Population_Nomad.Population.Unique.PopDef_MrMercy", map_blacklist=["frost_p"]),
                 CustomSpawn("Mad Mike 'boutta ruin your day",Tag.MINIBOSS,popDef="GD_Population_Nomad.Population.Unique.PopDef_MadMike", map_blacklist=["dam_p"]),
-                CustomSpawn("Prospector",Tag.MINIBOSS,popDef="GD_Population_Nomad.Population.Unique.PopDef_Prospector"),
+                CustomSpawn("Prospector",Tag.MINIBOSS,popDef="GD_Population_Nomad.Population.Unique.PopDef_Prospector", map_blacklist="tundraexpress_p"),
                 MultiSpawn("Assassin Tagteam",Tag.BOSS,customSpawnList=[
                     CustomSpawn("Ass Wot",Tag.MINIBOSS,     popDef="GD_Population_Marauder.Population.Unique.PopDef_Assassin1"),
                     CustomSpawn("Ass Oney",Tag.MINIBOSS,    popDef="GD_Population_Nomad.Population.Unique.PopDef_Assassin2"),
@@ -416,7 +421,7 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                 CustomSpawn("Jets",Tag.CHUMP,range(3,5),        popDef="GD_Population_Loader.Population.PopDef_LoaderJET"),
                 CustomSpawn("Surveyors",Tag.CHUMP,range(3,5),   popDef="GD_Population_Probe.Population.PopDef_ProbeMix_Regular")
             ]),
-            # Wilhelm boss from TundraTrain
+            # TODO Wilhelm boss from TundraTrain
             
             # Fauna
             CustomSpawn("Release the Rakk!",Tag.CHUMP,[4,8],popDef="GD_Population_Rakk.Population.PopDef_Rakk"),
@@ -441,6 +446,7 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
         ],
         DLC.Hammerlock: [
             CustomSpawn("Elite Savages",Tag.ULTIMATE_BADASS,[2,3,4],[1,2,2],popDef="GD_Sage_Pop_Natives.Population.PopDef_Native_Elite"),
+            # TODO Spore Pinata Party
         ],
         DLC.DragonKeep: [
             CustomSpawn("Handsome Tower ATTACKS!",Tag.MEDIUM,range(8,15),popDef="GD_Aster_Pop_Orcs.Population.PopDef_OrcsDen_Regular",spawnPointDef="PopPointDef_Orc_OrbitalDrop"),
@@ -455,9 +461,39 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                 CustomSpawn("Worms",Tag.CHUMP,range(2,6),   popDef="GD_Anemone_Pop_WildLife.Population.PopDef_InfectedSandWorm")
             ]),
             CustomSpawn("Sanctuary ATTACKS!",Tag.MEDIUM,range(8,15),popDef="GD_Anemone_Pop_Infected.Population.PopDef_Infected_MIX",spawnPointDef="PopPointDef_OrbitalDrop_Infection_Test"),
+            # TODO Sentient mutating Spores in my grill
         ],
         DLC.Headhunters: [
-            # Each pair of tributes as ultimate badasses
+            PoolSpawn("Tribute Pair",Tag.ULTIMATE_BADASS,customSpawnList=[
+                MultiSpawn("Tributes of Sawtooth",Tag.ULTIMATE_BADASS,customSpawnList=[
+                    CustomSpawn("Female",Tag.BADASS,    popDef="GD_CraterFemale.Balance.PopDef_CraterFemale"),
+                    CustomSpawn("Male",Tag.BADASS,      popDef="GD_CraterMale.Balance.PopDef_CraterMale")
+                ]),
+                MultiSpawn("Tributes of Opportunity",Tag.ULTIMATE_BADASS,customSpawnList=[
+                    CustomSpawn("Female",Tag.BADASS,    popDef="GD_EngineeFemale.Balance.PopDef_EngineerFemale"),
+                    CustomSpawn("Male",Tag.BADASS,      popDef="GD_EngineerMale.Balance.PopDef_EngineerMale")
+                ]),
+                MultiSpawn("Tributes of Southern Shelf",Tag.ULTIMATE_BADASS,customSpawnList=[
+                    CustomSpawn("Female",Tag.BADASS,    popDef="GD_FleshripperFemale.Balance.PopDef_FleshripperFemale"),
+                    CustomSpawn("Male",Tag.BADASS,      popDef="GD_FleshripperMale.Balance.PopDef_FleshripperMale")
+                ]),
+                MultiSpawn("Tributes of Frostburn",Tag.ULTIMATE_BADASS,customSpawnList=[
+                    CustomSpawn("Female",Tag.BADASS,    popDef="GD_IncineratorFemale.Balance.PopDef_IncineratorFemale"),
+                    CustomSpawn("Male",Tag.BADASS,      popDef="GD_IncineratorMale.Balance.PopDef_IncineratorMale")
+                ]),
+                MultiSpawn("Tributes of Lynchwood",Tag.ULTIMATE_BADASS,customSpawnList=[
+                    CustomSpawn("Female",Tag.BADASS,    popDef="GD_Lynchwood_Female.Character.Pawn_Lynchwood_Female"),
+                    CustomSpawn("Male",Tag.BADASS,      popDef="GD_Lynchwood_Male.Character.Pawn_Lynchwood_Male")
+                ]),
+                MultiSpawn("Tributes of Sanctuary",Tag.ULTIMATE_BADASS,customSpawnList=[
+                    CustomSpawn("Female",Tag.BADASS,    popDef="GD_RaiderFemale.Character.Pawn_RaiderFemale"),
+                    CustomSpawn("Male",Tag.BADASS,      popDef="GD_RaiderMale.Character.Pawn_RaiderMale")
+                ]),
+                MultiSpawn("Tributes of Wurmwater",Tag.ULTIMATE_BADASS,customSpawnList=[
+                    CustomSpawn("Female",Tag.BADASS,    popDef="GD_SandFemale.Balance.PopDef_SandFemale"),
+                    CustomSpawn("Male",Tag.BADASS,      popDef="GD_SandMale.Balance.PopDef_SandMale")
+                ]),
+            ],map_blacklist=["Hunger_P"])
         ],    
         DLC.Digistruct: [
         ]
