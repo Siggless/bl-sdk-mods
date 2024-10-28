@@ -206,100 +206,126 @@ levels_by_DLC = {
 
 combat_packages_by_DLC = {
     DLC.BL2: [
-        # "BanditSlaughter_Audio.upk",
+        # Need to load the _P packages first to make sure BodyTags and stuff are found
+        "BanditSlaughter_P.upk",
         "BanditSlaughter_Combat.upk",
-        #"BanditSlaughter_Dynamic.upk",
-        # "CreatureSlaughter_Audio.upk",
-        #"CreatureSlaughter_Combat.upk",
+        "CreatureSlaughter_P.upk",
         "CreatureSlaughter_Dynamic.upk",
-        # "RobotSlaughter_Audio.upk",
-        #"RobotSlaughter_Dynamic.upk",      # Loaders and Hyperion, BUT causes BodyTag to get unloaded for some reason
+        "RobotSlaughter_P.upk",
+        "RobotSlaughter_Dynamic.upk",
         
         # Extra non-Combats we need for missing bits i.e. minibosses
+        "Caverns_P.upk",                    # Creepers
         "Cove_Dynamic.upk",                 # MidgetBadass
         "Dam_Dynamic.upk",                  # Marauder
-        "Ice_Dynamic.upk",
+        "Ice_Dynamic.upk",                  # Ice Bullymongs?
         "Fridge_Dynamic.upk",               # Laney
         "Frost_Dynamic.upk",                # Mr Mercy, Bad Maw, Nomad Badass
+        "Grass_Lynchwood_Dynamic.upk",      # Marshals, Deputy, Sheriff
+        #"HyperionCity_Dynamic.upk",         # ProbeMix_Badass, Foreman
         "SouthpawFactory_Dynamic.upk",      # Assassins
-        
-        "Ash_Combat.upk",
-        "Boss_Cliffs_CombatLoader.upk",     # Loader Bunker Mix
-        # "Boss_Volcano_Combat_Monster.upk",  # Volcanic Rakk
+        "TundraTrain_Dynamic.upk",          # Wilhelm
+
+        "Ash_Combat.upk",                   # Rock Bullymongs
         # "BanditSlaughter_Combat.upk",
         # "Boss_Cliffs_Combat.upk",
+        "Boss_Cliffs_CombatLoader.upk",     # Loader Bunker Mix
         # "Boss_Volcano_Combat.upk",
-        # "Caverns_Combat.upk",
+        # "Boss_Volcano_Combat_Monster.upk",  # Volcanic Rakk
         # "CraterLake_Combat.upk",
         # "CreatureSlaughter_Combat.upk",
         "Dam_Combat.upk",                   # Mad Mike
         # "DamTop_Combat.upk",
-        "FinalBossAscent_Combat.upk",       # Infiltrator
+        "FinalBossAscent_Combat.upk",       # HyperionInfiltrator
         # "Fridge_Combat.upk",
         "Fyrestone_Combat.upk",
-        # "Grass_Cliffs_Combat.upk",
-        "Grass_Combat.upk",
-        # "Grass_Lynchwood_Combat.upk",
-        # "HyperionCity_Combat.upk",
-        "IceCanyon_Combat.upk",
+        "Grass_Cliffs_Combat.upk",          # HyperionSoldier
+        # "Grass_Combat.upk",
+        "Grass_Lynchwood_Combat.upk",       # Miners, Skag Riders
+        "IceCanyon_Combat.upk",             # Flame Bandits
         # "Interlude_Combat.upk",
         # "Outwash_Combat.upk",
-        "PandoraPark_Combat.upk",
+        "PandoraPark_Combat.upk",           # Stalkers
         # "Sanctuary_Hole_Combat.upk",
         # "SouthernShelf_Combat.upk",
         # "Stockade_Combat.upk",
         "ThresherRaid_P.upk",               # Terry
         "TundraExpress_Combat.upk",         # Prospector
-        # "TundraTrain_Combat.upk",           # Wilhelm
         # "VOGChamber_Combat.upk",
+        
     ],
-    # DLC.Scarlett: [
-    #     "Orchid_Refinery_Combat.upk",
-    #     "Orchid_OasisTown_Combat.upk",
-    #     "Orchid_Caves_Combat.upk",
-    #     "Orchid_Spire_Combat.upk",
-    #     "Orchid_ShipGraveyard_Combat.upk",
-    #     "Orchid_SaltFlats_Combat.upk"
-    # ],
-    # DLC.Torgue: [
-    #     "Iris_DL1_Combat.upk",
-    #     "Iris_Hub_Combat.upk",
-    #     "Iris_Hub2_Combat.upk",
-    #     "Iris_DL3_Combat.upk",
-    #     "Iris_DL2_Combat.upk",
-    #     "Iris_DL2_Interior_Combat.upk",
-    #     "Iris_DL1_TAS_Combat.upk"
-    # ],
-    # DLC.Hammerlock: [
-    #     #"Sage_Cliffs_Combat.upk",  # Breaks Elite Savages
-    #     "Sage_Underground_Combat.upk",
-    #     "Sage_RockForest_Combat.upk",
-    #     "Sage_PowerStation_Combat.upk"
-    # ],
-    # DLC.DragonKeep: [
-    #     "Dead_Forest_Combat.upk",
-    #     #"Docks_Combat.upk",
-    #     "Dungeon_Combat.upk",
-    #     #"DungeonRaid_Combat.upk",
-    #     "Mines_Combat.upk",
-    #     "TempleSlaughter_Combat.upk",
-    #     "CastleExterior_Combat.upk",
-    #     #"CastleKeep_Combat.upk",
-    #     "Dark_Forest_Combat.upk"
-    # ],
-    # DLC.FFS: [
-    #     "SanctIntro_Combat.upk",
-    #     "OldDust_Lair.upk"
-    # ],
-    # DLC.Headhunters: [
-    #     "Xmas_Combat.upk",
-    #     "Pumpkin_Patch_Combat.upk",
-    #     "Distillery_Combat.upk",
-    #     "Easter_Combat.upk"
-    # ],
-    # DLC.Digistruct: [
-    #     "TestingZone_Combat.upk"
-    # ]
+    DLC.Torgue: [
+        # "Iris_Hub_P.upk",
+        # "Iris_Hub_Combat.upk",
+        # "Iris_Hub_Dynamic.upk",
+        "Iris_DL3_P.upk",                   # Forge Loaders
+        #"Iris_DL3_Dynamic.upk",            # Forge Loaders (nope need defs from _P)
+        "Iris_DL1_Battle.upk",                  # Arena Gangs
+        #"Iris_DL1_Dynamic.upk",                  # Arena Gangs Body Tags?
+        # NOPE this can't find a BodyTag cus the factory returns another popdef instead of pawnai
+        # Fix this instead!
+        #"Iris_Hub2_Combat.upk",            # Monster Truck
+        #"Iris_DL2_Combat.upk",
+        #"Iris_DL2_Interior_Combat.upk",
+        #"Iris_DL1_TAS_Combat.upk"
+    ],
+    DLC.Scarlett: [
+        #"Orchid_Refinery_Combat.upk",
+        "Orchid_OasisTown_Combat.upk",      # NoBeard, Pirate Cursed
+        "Orchid_Caves_Combat.upk",          # Blue Crystalisks, Pirates
+        "Orchid_Spire_P.upk",               # Big Pirates, Mr Bubbles
+        "Orchid_Spire_Dynamic.upk",         # Scarlett Crew
+        "Orchid_ShipGraveyard_Combat.upk",  # Anchorman
+        "Orchid_SaltFlats_Combat.upk"       # Pirate Grenadier
+        #"Orchid_WormBelly_Dynamic.upk",     # Rakk Hive, Worms
+    ],
+    DLC.Hammerlock: [
+        #"Sage_Cliffs_Combat.upk",  # Breaks Elite Savages - might need _P too, whatevs
+        "Sage_PowerStation_Combat.upk"
+        #"Sage_RockForest_Combat.upk",
+        "Sage_Underground_Combat.upk",
+    ],
+    DLC.DragonKeep: [
+        "TempleSlaughter_P.upk",        # Materials for knights
+        "TempleSlaughter_Combat.upk",
+        "Dead_Forest_Combat.upk",
+        #"Docks_Combat.upk",
+        "Dungeon_Combat.upk",
+        #"DungeonRaid_Combat.upk",
+        "Mines_Combat.upk",
+        #"CastleExterior_Combat.upk",
+        #"CastleKeep_Combat.upk",
+        "Dark_Forest_Combat.upk"
+    ],
+    DLC.Headhunters: [
+        "Xmas_Combat.upk",
+        "Hunger_Boss.upk",              # Tributes
+        "Hunger_Dynamic.upk",
+        "Hunger_Mission_1.upk",         # ButcherBoss1-3, RatChef, Tributes
+        "Hunger_Mission_2.upk",         # Engineer Tributes
+        #"Hunger_Mission_3.upk",        # ButcherBoss2 and 3
+        "Pumpkin_Patch_Combat.upk",
+        "Distillery_Combat.upk",
+        "Easter_Combat.upk"
+    ],
+    DLC.FFS: [
+        "BackBurner_P.upk",             # Infected materials
+        #"BackBurner_LD.upk",            # Infected materials
+        "BackBurner_Mission_Main.upk",  # Infected materials
+        "ResearchCenter_MissionMain.upk",
+        "ResearchCenter_MissionSide.upk",
+        "OldDust_Lair.upk",             # Infected Bandits
+        "OldDust_LD.upk",               # Infected Goliath, Curse
+        "OldDust_Mission_Main.upk",
+        "OldDust_Mission_Side.upk",
+        "Sandworm_Encounters",          # Infected Golem Badass
+        "Sandworm_Mission_Side.upk",
+        "Helios_Mission_Main.upk",
+        "Helios_Mission_Side.upk",
+    ],
+    DLC.Digistruct: [
+        "TestingZone_Combat.upk"
+    ]
 }
 
 loaded_DLCs = []
@@ -316,7 +342,6 @@ def GetCurrentDLC(PC) -> str:
 
 def KeepAliveAllClass(class_name: str):
     objects = unrealsdk.FindAll(class_name)
-    Log(f"Keeping alive {len(objects)} {class_name}s.")
     for object in objects:
         unrealsdk.KeepAlive(object)
 
@@ -326,94 +351,75 @@ def LoadLevelSpawnObjects(DLC: str):
         return
     
     for package_name in combat_packages_by_DLC[DLC]:
-        if True or not any(x in package_name for x in ["Audio","FX","Light","Skybox"]):
-            Log(package_name)
+        #Log(package_name)
 
-            # We can't just KeepAlive the entire package if we are loading levels, because Dens will be loaded and used!
-            unrealsdk.LoadPackage(package_name)
-            KeepAliveAllClass("WillowPopulationDefinition")
-            # KeepAliveAllClass("PopulationBodyTag")
-            # KeepAliveAllClass("PopulationFactoryBalancedAIPawn")
-            # KeepAliveAllClass("PopulationFactoryPopulationDefinition")
+        # We can't just KeepAlive the entire package if we are loading levels, because Dens will be loaded and used!
+        unrealsdk.LoadPackage(package_name)
+        KeepAliveAllClass("WillowPopulationDefinition")
+        KeepAliveAllClass("PopulationFactoryBalancedAIPawn")
+        
+        #unrealsdk.GetEngine().GetCurrentWorldInfo().ForceGarbageCollection(True)
+
             
-            # KeepAliveAllClass("ParticleSpriteEmitter")
-            # KeepAliveAllClass("ParticleSystem")
-            # # GD_AI
-            # KeepAliveAllClass("AIResource")
-            # KeepAliveAllClass("AttributeDefinition")
-            # KeepAliveAllClass("PawnAllegiance")
-            # KeepAliveAllClass("PopulationBodyTag")
-            # KeepAliveAllClass("PopulationSpawnedActorTagDefinition")
-            # KeepAliveAllClass("TargetingDefinition")
-            # # GD_Balance
-            # KeepAliveAllClass("AttributeInitializationDefinition")
-            # KeepAliveAllClass("BodyClassDefinition")
-            # KeepAliveAllClass("BodyClassDeathDefinition")
-            # KeepAliveAllClass("BodyHitRegionDefinition")
-            # KeepAliveAllClass("CoordinatedEffectDefinition")
-            # KeepAliveAllClass("StanceTypeDefinition")
-            # KeepAliveAllClass("TurnDefinition")
-            
-            # KeepAliveAllClass("PopulationBodyTag")
-            # KeepAliveAllClass("PopulationFactoryBalancedAIPawn")
-            # KeepAliveAllClass("PopulationFactoryPopulationDefinition")
-            # KeepAliveAllClass("WillowPopulationDefinition")
-            
-    # Log these so we have a definitive list of what we can use
-    loadedPopDefs = unrealsdk.FindAll("WillowPopulationDefinition")
-    for popdef in sorted([x.Name for x in loadedPopDefs]):
-        Log(popdef)
+    # # Log these so we have a definitive list of what we can use
+    # loadedPopDefs = unrealsdk.FindAll("WillowPopulationDefinition")
+    # for popdef in sorted([x.Name for x in loadedPopDefs]):
+    #     Log(popdef)
+        
+    # loadedPopDefs = unrealsdk.FindAll("PopulationBodyTag")
+    # for popdef in sorted([x.Name for x in loadedPopDefs]):
+    #     Log(popdef)
             
             
-            
-            # We will also need to only do this on the MENUMAP because otherwise is crashes on level change
-            # Due to garbage collection
-            # # AK
-            # KeepAliveAllClass("AkEvent")
-            # # Anim
-            # KeepAliveAllClass("AnimSet")
-            # # Char/Veh
-            # KeepAliveAllClass("Material")
-            # KeepAliveAllClass("MaterialInstanceConstant")
-            # KeepAliveAllClass("PhysicsAsset")
-            # KeepAliveAllClass("SkeletalMeshSocket")
-            # KeepAliveAllClass("StaticMesh")
-            # KeepAliveAllClass("Texture2D")
-            # # FX
-            # KeepAliveAllClass("ParticleSpriteEmitter")
-            # KeepAliveAllClass("ParticleSystem")
-            # # GD_AI
-            # KeepAliveAllClass("AIResource")
-            # KeepAliveAllClass("AttributeDefinition")
-            # KeepAliveAllClass("PawnAllegiance")
-            # KeepAliveAllClass("PopulationBodyTag")
-            # KeepAliveAllClass("PopulationSpawnedActorTagDefinition")
-            # KeepAliveAllClass("TargetingDefinition")
-            # # GD_Balance
-            # KeepAliveAllClass("AttributeInitializationDefinition")
-            # KeepAliveAllClass("InteractiveObjectDefinition")
-            # KeepAliveAllClass("InteractiveObjectBalanceDefinition")
-            # # GD_ENEMY
-            # KeepAliveAllClass("AIClassDefinition")
-            # KeepAliveAllClass("AIPawnBalanceDefinition")
-            # KeepAliveAllClass("BehaviorVolumeDefinition")
-            # KeepAliveAllClass("BodyClassDefinition")
-            # KeepAliveAllClass("BodyClassDeathDefinition")
-            # KeepAliveAllClass("BodyHitRegionDefinition")
-            # KeepAliveAllClass("CoordinatedEffectDefinition")
-            # KeepAliveAllClass("GearboxDialogGroup")
-            # KeepAliveAllClass("StanceTypeDefinition")
-            # KeepAliveAllClass("TurnDefinition")
-            # KeepAliveAllClass("WillowAIDefinition")
-            # KeepAliveAllClass("WillowAIPawn")
-            # KeepAliveAllClass("WillowAnimDefinition")
-            # KeepAliveAllClass("WillowDialogEventTag")
-            # # GD_Impacts
-            # KeepAliveAllClass("WillowExplosionImpactDefinition")
-            # KeepAliveAllClass("WillowImpactDefinition")
-            
-            # # What we DEFINITELY need
-            # KeepAliveAllClass("PopulationFactoryBalancedAIPawn")
-            # KeepAliveAllClass("WillowPopulationDefinition")
+        # We will also need to only do this on the MENUMAP because otherwise is crashes on level change
+        # Due to garbage collection
+        # # AK
+        # KeepAliveAllClass("AkEvent")
+        # # Anim
+        # KeepAliveAllClass("AnimSet")
+        # # Char/Veh
+        # KeepAliveAllClass("Material")
+        # KeepAliveAllClass("MaterialInstanceConstant")
+        # KeepAliveAllClass("PhysicsAsset")
+        # KeepAliveAllClass("SkeletalMeshSocket")
+        # KeepAliveAllClass("StaticMesh")
+        # KeepAliveAllClass("Texture2D")
+        # # FX
+        # KeepAliveAllClass("ParticleSpriteEmitter")
+        # KeepAliveAllClass("ParticleSystem")
+        # # GD_AI
+        # KeepAliveAllClass("AIResource")
+        # KeepAliveAllClass("AttributeDefinition")
+        # KeepAliveAllClass("PawnAllegiance")
+        # KeepAliveAllClass("PopulationBodyTag")
+        # KeepAliveAllClass("PopulationSpawnedActorTagDefinition")
+        # KeepAliveAllClass("TargetingDefinition")
+        # # GD_Balance
+        # KeepAliveAllClass("AttributeInitializationDefinition")
+        # KeepAliveAllClass("InteractiveObjectDefinition")
+        # KeepAliveAllClass("InteractiveObjectBalanceDefinition")
+        # # GD_ENEMY
+        # KeepAliveAllClass("AIClassDefinition")
+        # KeepAliveAllClass("AIPawnBalanceDefinition")
+        # KeepAliveAllClass("BehaviorVolumeDefinition")
+        # KeepAliveAllClass("BodyClassDefinition")
+        # KeepAliveAllClass("BodyClassDeathDefinition")
+        # KeepAliveAllClass("BodyHitRegionDefinition")
+        # KeepAliveAllClass("CoordinatedEffectDefinition")
+        # KeepAliveAllClass("GearboxDialogGroup")
+        # KeepAliveAllClass("StanceTypeDefinition")
+        # KeepAliveAllClass("TurnDefinition")
+        # KeepAliveAllClass("WillowAIDefinition")
+        # KeepAliveAllClass("WillowAIPawn")
+        # KeepAliveAllClass("WillowAnimDefinition")
+        # KeepAliveAllClass("WillowDialogEventTag")
+        # # GD_Impacts
+        # KeepAliveAllClass("WillowExplosionImpactDefinition")
+        # KeepAliveAllClass("WillowImpactDefinition")
+        
+        # # What we DEFINITELY need
+        # KeepAliveAllClass("PopulationFactoryBalancedAIPawn")
+        # KeepAliveAllClass("WillowPopulationDefinition")
 
     loaded_DLCs.append(DLC)
+    
