@@ -23,6 +23,32 @@
             }
         },
         {
+            "name": "Ambient Spawns",
+            "tagline": "Periodically spawns random groups of enemies, optionally from other maps.",
+            "description": [
+                "Periodically spawns random groups of enemies.\n",
+                "The intention is to make the game more unpredictable.\n\n",
+                "It matches spawn points to enemies with spawn animations, so it doesn't look too janky.\n",
+                "Options for spawn frequency and distance to the player, and which enemies to use:\n",
+                "Den\t\t- Only spawns enemies that usually spawn from a chosen point.\n",
+                "Level\t- Only spawns enemies loaded in the current level.\n",
+                "DLC*\t- May spawn any custom enemy groups from the current DLC (or base game).\n",
+                "Game*\t- May spawn any custom enemy groups from the entire game.\n",
+                "*These options require all available enemies to be loaded upon reaching the start menu.\n",
+                "*This causes some visual texture bugs, and possibly crashes."
+            ],
+            "supports": ["BL2"],
+            "types": ["Gameplay"],
+            "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/AmbientSpawns",
+            "latest": "1.0.0",
+            "versions": {
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/AmbientSpawns/AmbientSpawns.zip",
+            },
+            "requirements": {
+                "UserFeedback": ">=1.6"
+            }
+        },
+        {
             "name": "Badass Rank Lock",
             "tagline": "Prevents badass rank changing and most challenge pop-ups.",
             "description": "Prevents badass rank increasing, and non-level-specific challenge reward pop-ups from showing.\nHas a setting for preventing bonus stats being enabled.\nIntended for use with mods that would otherwise give you loads of rank.",
