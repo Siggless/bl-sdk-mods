@@ -260,10 +260,7 @@ combat_packages_by_DLC = {
         # "Iris_Hub_Dynamic.upk",
         "Iris_DL3_P.upk",                   # Forge Loaders
         #"Iris_DL3_Dynamic.upk",            # Forge Loaders (nope need defs from _P)
-        "Iris_DL1_Battle.upk",                  # Arena Gangs
-        #"Iris_DL1_Dynamic.upk",                  # Arena Gangs Body Tags?
-        # NOPE this can't find a BodyTag cus the factory returns another popdef instead of pawnai
-        # Fix this instead!
+        "Iris_DL1_Battle.upk",              # Arena Gangs
         #"Iris_Hub2_Combat.upk",            # Monster Truck
         #"Iris_DL2_Combat.upk",
         #"Iris_DL2_Interior_Combat.upk",
@@ -333,9 +330,9 @@ loaded_DLCs = []
 def GetCurrentDLC(PC) -> str:
     map_name = PC.WorldInfo.GetStreamingPersistentMapName()
     for DLC in levels_by_DLC:
-        Log(DLC.name)
+        #Log(DLC.name)
         if map_name.lower() in [x.lower() for x in levels_by_DLC[DLC]]:
-            Log(f"{map_name} found in {DLC.name}")
+            #Log(f"{map_name} found in {DLC.name}")
             return DLC
     Log(f"{map_name} not found!")
     return None
@@ -347,29 +344,14 @@ def KeepAliveAllClass(class_name: str):
 
 def LoadLevelSpawnObjects(DLC: str):
     if DLC in loaded_DLCs:
-        Log(f"DLC {DLC.name} levels are already loaded!")
+        #Log(f"DLC {DLC.name} levels are already loaded!")
         return
     
     for package_name in combat_packages_by_DLC[DLC]:
-        #Log(package_name)
-
         # We can't just KeepAlive the entire package if we are loading levels, because Dens will be loaded and used!
         unrealsdk.LoadPackage(package_name)
         KeepAliveAllClass("WillowPopulationDefinition")
         KeepAliveAllClass("PopulationFactoryBalancedAIPawn")
-        
-        #unrealsdk.GetEngine().GetCurrentWorldInfo().ForceGarbageCollection(True)
-
-            
-    # # Log these so we have a definitive list of what we can use
-    # loadedPopDefs = unrealsdk.FindAll("WillowPopulationDefinition")
-    # for popdef in sorted([x.Name for x in loadedPopDefs]):
-    #     Log(popdef)
-        
-    # loadedPopDefs = unrealsdk.FindAll("PopulationBodyTag")
-    # for popdef in sorted([x.Name for x in loadedPopDefs]):
-    #     Log(popdef)
-            
             
         # We will also need to only do this on the MENUMAP because otherwise is crashes on level change
         # Due to garbage collection

@@ -4,14 +4,9 @@ import unrealsdk
 from unrealsdk import Log
 from typing import *
 
-try:
-    from . import level_packages
-    from .level_packages import *
-    from . import ModMenu
-except ImportError:
-    from Mods.AmbientSpawns import level_packages
-    from Mods.AmbientSpawns.level_packages import *
-    from Mods import ModMenu
+from Mods import ModMenu
+from Mods.AmbientSpawns import level_packages
+from Mods.AmbientSpawns.level_packages import *
 
 class Tag(enum.IntEnum):
     CHUMP = enum.auto()
@@ -32,42 +27,9 @@ BadassTagWeights = {
 }
 """Weights for selecting a spawn by Badass Tag"""
 
-popDefSubstitutionPools=[
-    [
-        "GD_Population_Psycho.Population.PopDef_PsychoBadass",
-        "GD_Iris_Population_Psycho.Population.PopDef_Iris_PsychoBadassBiker"
-    ],
-    [
-        "GD_Population_Psycho.Population.PopDef_Psycho",
-        "GD_Population_Psycho.Population.PopDef_PsychoBurning",
-        "GD_Population_Psycho.Population.PopDef_PsychoSnow",
-        "GD_Allium_PsychoKitchen.Balance.PopDef_PsychoKitchen",
-        "GD_Anemone_Pop_Bandits.Balance.PopDef_Ini_Psycho",
-        "GD_HodunkPsycho.Balance.PopDef_HodunkPsycho",
-        "GD_Iris_Population_Biker.Gangs.PopDef_Iris_BikerPsycho_Angels",
-        "GD_Iris_Population_Biker.Gangs.PopDef_Iris_BikerPsycho_Dragon",
-        "GD_Iris_Population_Biker.Gangs.PopDef_Iris_BikerPsycho_Torgue",
-        "GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PiratePsycho",
-        "GD_Population_AlliumXmas.Population.PopDef_SnowPsychos",
-        "GD_Psycho_Digi.Population.PopDef_Psycho_Digi"
-    ],
-    [
-        "BADASS LOADER",
-        "ARR LOADER",
-        "TORGUE BADASS"
-    ]
-]
-"""If a popDef isn't found in this map, or there are other ones available, we can make it a bit
-more random by choosing one to subsitute - particularly in the DLC areas.
-"""
-# TODO Cache the sub-list in the CustomSpawns on load, then pick each spawn. If MegaMix
-# Or turn each CustomSpawn into a PoolSpawn containing the subsitution list.
-
 # This is how I define all bespoke spawns that aren't using the in-game population points.
 # I am choosing to return PopulationFactoryBalancedAIPawns instead of WillowPopulationDefinitions,
 #  because not all enemies have a unique PopDef, but they do all have a unique factory.
-
-
 class Spawn:
     def __init__(self, name:str, tag:Tag, spawnPointDef, map_whitelist:List[str], map_blacklist:List[str]):
         self.name = name
@@ -167,25 +129,25 @@ class CustomSpawn(Spawn):
         if self.factory:
             self.factoryObj = unrealsdk.FindObject("PopulationFactoryBalancedAIPawn", self.factory)
             if not self.factoryObj:
-                Log(f"{self.factory} not found in this map.")
+                #Log(f"{self.factory} not found in this map.")
                 return False
         else:
             self.popDefObj = unrealsdk.FindObject("WillowPopulationDefinition", self.popDef)
             if not self.popDefObj:
-                Log(f"{self.popDef} not found in this map.")
+                #Log(f"{self.popDef} not found in this map.")
                 return False
             self.factoryObj = self.GetFactoryFromPopDef(self.popDefObj)
             #self.factoryObj = self.popDefObj.ActorArchetypeList[0].SpawnFactory  # Assuming all pawns in a factory have the same body tag
             if not self.factoryObj:
-                Log(f"{self.popDef} has no factory!")
+                #Log(f"{self.popDef} has no factory!")
                 return False
         
         self.bodyTagObj = GetBodyTagFromFactory(self.factoryObj)
-        if not self.bodyTagObj:
-            if self.popDefObj:
-                Log(f"{self.name} - No BodyTag in {self.popDefObj.Name}")
-            else:
-                Log(f"{self.name} - No BodyTag in {self.factoryObj.Name}.")
+        # if not self.bodyTagObj:
+        #     if self.popDefObj:
+        #         Log(f"{self.name} - No BodyTag in {self.popDefObj.Name}")
+        #     else:
+        #         Log(f"{self.name} - No BodyTag in {self.factoryObj.Name}.")
         
         return True
     
@@ -210,8 +172,6 @@ class CustomSpawn(Spawn):
     def DenSupportsSpawn(self, den) -> bool:
         """Checks whether this CustomSpawn can use spawn animations for the given den."""
         if not self.factoryObj:
-            # Log(f"A CustomSpawn {self.name} does not have a factory loaded for DenSupportsSpawn!")
-            # return False
             raise ValueError(f"A CustomSpawn {self.name} does not have a factory loaded for DenSupportsSpawn!")
         
         for spawn in den.SpawnPoints:
@@ -267,10 +227,10 @@ def GetAllFactoriesFromPopDef(popDef) -> Set:
 def GetBodyTagFromFactory(factory):
     AIPawnBalanceDef = factory.PawnBalanceDefinition
     if not AIPawnBalanceDef:
-        Log(f"{factory.PathName(factory)} has no PawnBalanceDefinition.")
+        #Log(f"{factory.PathName(factory)} has no PawnBalanceDefinition.")
         return False
     if not AIPawnBalanceDef.AIPawnArchetype:
-        Log(f"{factory.PathName(factory)} has no AIPawnArchetype.")
+        #Log(f"{factory.PathName(factory)} has no AIPawnArchetype.")
         return False
     return AIPawnBalanceDef.AIPawnArchetype.BodyClass.BodyTag
 
@@ -282,22 +242,30 @@ def CustomSpawnFromPopDef(PopDef) -> CustomSpawn:
     
     tag = Tag.CHUMP
     allFactories = GetAllFactoriesFromPopDef(PopDef)
+    numBadasses = 0
+    numChampions = 0
     if len(allFactories) == 0:
-        Log(f"{PopDef.PathName(PopDef)} has no factories?!")
+        #Log(f"{PopDef.PathName(PopDef)} has no factories?!")
         return False
+
     for factory in allFactories:
         if not factory or factory.bIsCriticalActor or not factory.PawnBalanceDefinition:
             return None
         PawnDef = factory.PawnBalanceDefinition
         if PawnDef:
             if PawnDef.Champion:
-                tag = Tag.ULTIMATE_BADASS
+                numChampions = numChampions + 1
             elif "badass" in PawnDef.PathName(PawnDef).lower():
-                tag = Tag.BADASS
+                numBadasses = numBadasses + 1
+    
     if "unique" in PopDef.PathName(PopDef).lower():
         tag = Tag.MINIBOSS
+    elif numChampions > len(allFactories) / 2:  # Not accounting for sub-popdef chance but whatevs
+        tag = Tag.BADASS
+    elif numBadasses > len(allFactories) / 2:
+        tag = Tag.ULTIMATE_BADASS
 
-    numSpawns = [1] # Default for Unique enemies
+    numSpawns = [1]     # Default for Unique enemies
     if tag == Tag.CHUMP:
         numSpawns = range(3,7)
     elif tag == Tag.BADASS:
@@ -314,7 +282,7 @@ def CustomSpawnFromPopDef(PopDef) -> CustomSpawn:
     spawn.bodyTagObj = GetBodyTagFromFactory(spawn.factoryObj)
     if not spawn.bodyTagObj:
         spawn.spawnPointDef = "None"
-        Log(f"{PopDef.Name} - No BodyTag in {spawn.factoryObj.PathName(spawn.factoryObj)}")
+        #Log(f"{PopDef.Name} - No BodyTag in {spawn.factoryObj.PathName(spawn.factoryObj)}")
     return spawn
 
 
@@ -511,7 +479,7 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                 CustomSpawn("Jets",Tag.CHUMP,range(3,5),        popDef="GD_Population_Loader.Population.PopDef_LoaderJET"),
                 CustomSpawn("Surveyors",Tag.CHUMP,range(2,5),   popDef="GD_Population_Probe.Population.PopDef_ProbeMix_Regular")
             ]),
-            CustomSpawn("Wilhelm",Tag.BOSS,factory="GD_Population_Loader.Population.Unique.PopDef_Willhelm:PopulationFactoryBalancedAIPawn_1",spawnPointDef="None"),
+            CustomSpawn("Wilhelm",Tag.BOSS,factory="GD_Population_Loader.Population.Unique.PopDef_Willhelm:PopulationFactoryBalancedAIPawn_1",spawnPointDef="None",map_blacklist=["tundratrain_p"]),
             
             # Fauna
             CustomSpawn("Release the Rakk!",Tag.CHUMP,[4,8],popDef="GD_Population_Rakk.Population.PopDef_Rakk",spawnPointDef="None"),
