@@ -42,7 +42,7 @@
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/AmbientSpawns",
             "latest": "1.0.0",
             "versions": {
-                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/AmbientSpawns/AmbientSpawns.zip",
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/AmbientSpawns/AmbientSpawns.zip"
             },
             "requirements": {
                 "UserFeedback": ">=1.6"
