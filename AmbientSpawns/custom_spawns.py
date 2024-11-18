@@ -1,12 +1,13 @@
 import enum
 import random
+from typing import Dict, List, Set, Tuple
 import unrealsdk
 from unrealsdk import Log
-from typing import *
 
-from Mods import ModMenu
 from Mods.AmbientSpawns import level_packages
 from Mods.AmbientSpawns.level_packages import *
+from Mods import ModMenu
+
 
 class Tag(enum.IntEnum):
     CHUMP = enum.auto()
@@ -27,9 +28,44 @@ BadassTagWeights = {
 }
 """Weights for selecting a spawn by Badass Tag"""
 
+megaMixCache: List[List[Tuple[object, object]]] = []  #Tuple[AIPawnBalanceDefinition, PopulationFactoryBalancedAIPawn]
+
+def CacheMegaMixPools():
+    global megaMixCache
+    megaMixCache = []
+    for pool in megaMixSubstitutionPools:
+        poolCache = []
+        poolBodyTag = None
+        for factoryPath in pool:
+            # We store the AIDef and a loaded Factory to compare and then use
+            factoryObj = unrealsdk.FindObject("PopulationFactoryBalancedAIPawn", factoryPath)
+            if not factoryObj:
+                #Log(f"MegaMix - Can't find factory {factoryPath}")
+                continue
+            AIDef = factoryObj.PawnBalanceDefinition
+            if AIDef:
+                if str(AIDef.Class.Name) != "AIPawnBalanceDefinition":
+                    # Is another PopDef instead of an AIDef
+                    #Log(f"MegaMix - {factoryPath} does not have an AIPawnBalanceDefinition (probably is another PopDef)")
+                    continue
+                # Check all body tags match in this pool too
+                bodyTag = GetBodyTagFromFactory(factoryObj)
+                if poolBodyTag:
+                    if bodyTag is not poolBodyTag:
+                        #Log(f"MegaMix - {factoryPath} pool has different BodyTags {bodyTag}, {poolBodyTag}")
+                        poolBodyTag = poolBodyTag
+                else:
+                    poolBodyTag = bodyTag
+                poolCache.append((AIDef, factoryObj))
+        if len(poolCache) > 1:
+            megaMixCache.append(poolCache)
+
+
 # This is how I define all bespoke spawns that aren't using the in-game population points.
 # I am choosing to return PopulationFactoryBalancedAIPawns instead of WillowPopulationDefinitions,
 #  because not all enemies have a unique PopDef, but they do all have a unique factory.
+
+
 class Spawn:
     def __init__(self, name:str, tag:Tag, spawnPointDef, map_whitelist:List[str], map_blacklist:List[str]):
         self.name = name
@@ -50,7 +86,7 @@ class Spawn:
         raise NotImplementedError
     def DenSupportsSpawn(self, den) -> bool:
         raise NotImplementedError
-    def GetNewFactoryList(self, den, gameStage, rarity = 1):
+    def GetNewFactoryList(self, den, gameStage, rarity=1, megaMix=False):
         """Returns a list of (factory, spawnPointDef, delay) for a random instance of this spawn"""
         raise NotImplementedError
 
@@ -61,9 +97,9 @@ class CustomSpawn(Spawn):
         super().__init__(name, tag, spawnPointDef, map_whitelist, map_blacklist)
         
         if numSpawns:
-            self.numSpawns =  list(numSpawns)
+            self.numSpawns = list(numSpawns)
             if numSpawnsWeights:
-                self.numSpawnsWeights =  list(numSpawnsWeights)
+                self.numSpawnsWeights = list(numSpawnsWeights)
                 if len(self.numSpawns) != len(self.numSpawnsWeights):
                     raise ValueError(f"{self.name} numSpawnsWeights do not match numSpawns:\t{self.numSpawns} - {self.numSpawnsWeights}")
             else:
@@ -74,6 +110,7 @@ class CustomSpawn(Spawn):
         self.minSpawns = min(self.numSpawns)
         self.maxSpawns = max(self.numSpawns)
             
+        self.popDef = None
         self.factory = factory
         if not factory:
             if popDef:
@@ -88,12 +125,14 @@ class CustomSpawn(Spawn):
         self.popDefObj = None
         self.bodyTagObj = None
         
+        self.megaMixPools = []
+        
     def GetRandomNumSpawns(self):
         if self.minSpawns == self.maxSpawns:
             return self.minSpawns
         return random.choices(self.numSpawns, self.numSpawnsWeights)[0]
     
-    def GetNewFactoryList(self, den, gameStage, rarity=1):
+    def GetNewFactoryList(self, den, gameStage, rarity=1, megaMix=False):
         """Returns a list of the single factory if defined, or a random factory from the popDef if not"""
         thisNumSpawns = self.GetRandomNumSpawns()
         # A random-ish delay makes the Helios groups way better
@@ -104,16 +143,26 @@ class CustomSpawn(Spawn):
             randomDelay = self.delayBetweenSpawns + random.randint(-delayRange, delayRange) / 100
             if self.popDefObj:
                 if not self.popDefObj:
-                    raise Exception("Tried to get a popDefObj when it has either not been loaded, or None!")
-                factoryList.append((self.popDefObj.GetRandomFactory(den, gameStage, rarity), self.spawnPointDef, randomDelay))
+                    raise Exception(f"{self.Name} - Tried to get a popDefObj when it has either not been loaded, or None!")
+                chosenFactory = self.popDefObj.GetRandomFactory(den, gameStage, rarity)
             else:
                 if not self.factoryObj:
-                    raise Exception("Tried to get a factoryObj when it has either not been loaded, or None!")
-                factoryList.append((self.factoryObj, self.spawnPointDef, randomDelay))
+                    raise Exception(f"{self.Name} - Tried to get a factoryObj when it has either not been loaded, or None!")
+                chosenFactory = self.factoryObj
+
+            if chosenFactory:
+                if megaMix:
+                    # Swap the factory with one from a megaMix pool
+                    for pool in self.megaMixPools:
+                        if any(chosenFactory.PawnBalanceDefinition is ai for (ai, fact) in pool):
+                            (ai, fact) = random.choice(pool)
+                            #Log(f"MegaMix - swapping factory {chosenFactory} with {fact}")
+                            chosenFactory = fact
+                factoryList.append((chosenFactory, self.spawnPointDef, randomDelay))
         return factoryList
 
     def LoadObjects(self, mapNameLower) -> bool:
-        """ 
+        """
         Tries to load the defined PopDef/Factory object for this spawn.
         Also tries to store MegaMix PopDef lists, if enabled.
         If mapNameLower is not None, also checks whether the given map is white/blacklisted for this CustomSpawn.
@@ -126,52 +175,35 @@ class CustomSpawn(Spawn):
                 return False
         
         self.factoryObj = None
+        allFactories = []
         if self.factory:
             self.factoryObj = unrealsdk.FindObject("PopulationFactoryBalancedAIPawn", self.factory)
             if not self.factoryObj:
                 #Log(f"{self.factory} not found in this map.")
                 return False
+            allFactories = [self.factoryObj]
         else:
             self.popDefObj = unrealsdk.FindObject("WillowPopulationDefinition", self.popDef)
             if not self.popDefObj:
                 #Log(f"{self.popDef} not found in this map.")
                 return False
-            self.factoryObj = self.GetFactoryFromPopDef(self.popDefObj)
-            #self.factoryObj = self.popDefObj.ActorArchetypeList[0].SpawnFactory  # Assuming all pawns in a factory have the same body tag
+            allFactories = GetAllFactoriesFromPopDef(self.popDefObj)
+            self.factoryObj = [*allFactories][0]  # Assuming all pawns in a factory have the same body tag
             if not self.factoryObj:
                 #Log(f"{self.popDef} has no factory!")
                 return False
         
         self.bodyTagObj = GetBodyTagFromFactory(self.factoryObj)
-        # if not self.bodyTagObj:
-        #     if self.popDefObj:
-        #         Log(f"{self.name} - No BodyTag in {self.popDefObj.Name}")
-        #     else:
-        #         Log(f"{self.name} - No BodyTag in {self.factoryObj.Name}.")
-        
+                
+        # Store cached megaMix pools relevant to this spawn by comparing AIPawnBalanceDefinitions
+        self.megaMixPools = GetMegaMixPoolsFromFactoryList(allFactories)
         return True
     
-    def GetFactoryFromPopDef(self, popDef):
-        """
-        Some PopDefs list PopulationFactoryPopulationDefinition instead of PopulationFactoryBalancedAIPawn.
-        We recurse through these to get the actual PopulationFactoryBalancedAIPawn that has an AIPawn.
-        Returns False if not found.
-        """
-        spawnFactory = popDef.ActorArchetypeList[0].SpawnFactory
-        if spawnFactory:
-            if str(spawnFactory.Class.Name) == "PopulationFactoryBalancedAIPawn":
-                return spawnFactory
-            else:
-                # Could be a PopulationFactoryPopulationDefinition instead
-                if spawnFactory.PopulationDef:
-                    return self.GetFactoryFromPopDef(spawnFactory.PopulationDef)
-        Log(f"{self.name} - GetFactoryFromPopDef failed!")
-        return False
-
-
     def DenSupportsSpawn(self, den) -> bool:
         """Checks whether this CustomSpawn can use spawn animations for the given den."""
         if not self.factoryObj:
+            # Log(f"A CustomSpawn {self.name} does not have a factory loaded for DenSupportsSpawn!")
+            # return False
             raise ValueError(f"A CustomSpawn {self.name} does not have a factory loaded for DenSupportsSpawn!")
         
         for spawn in den.SpawnPoints:
@@ -191,11 +223,10 @@ class CustomSpawn(Spawn):
                 for bodyTag in [animMap.Key for animMap in spawn.PointDef.AnimMap if animMap.Key]:
                     # Check this tag matches the enemy we want to spawn
                     if bodyTag is self.bodyTagObj:
-                        #Log(f"{self.popDef} BodyTag {bodyTag.Name} matches den's factory BodyTag {self.bodyTag.Name}.")
                         return True
-            else:
-                Log(f"{self.name} - Can't find a BodyTag from {self.factoryObj.PathName(self.factoryObj)} for den {den.PathName(den)}.")
-                Log(f"{self.name} - If this pawn actually has BodyTag=None, it needs to use spawnPointDef=\"None\".")
+            # else:
+            #     Log(f"{self.name} - Can't find a BodyTag from {self.factoryObj.PathName(self.factoryObj)} for den {den.PathName(den)}.")
+            #     Log(f"{self.name} - If this pawn actually has BodyTag=None, it needs to use spawnPointDef=\"None\".")
         
         return False
     
@@ -234,6 +265,9 @@ def GetBodyTagFromFactory(factory):
         return False
     return AIPawnBalanceDef.AIPawnArchetype.BodyClass.BodyTag
 
+def GetMegaMixPoolsFromFactoryList(allFactories) -> List[Tuple[object, object]]:
+    return [pool for pool in megaMixCache if any(x[0] in [f.PawnBalanceDefinition for f in allFactories] for x in pool)]
+
 def CustomSpawnFromPopDef(PopDef) -> CustomSpawn:
     if not PopDef:
         return None
@@ -261,9 +295,9 @@ def CustomSpawnFromPopDef(PopDef) -> CustomSpawn:
     if "unique" in PopDef.PathName(PopDef).lower():
         tag = Tag.MINIBOSS
     elif numChampions > len(allFactories) / 2:  # Not accounting for sub-popdef chance but whatevs
-        tag = Tag.BADASS
-    elif numBadasses > len(allFactories) / 2:
         tag = Tag.ULTIMATE_BADASS
+    elif numBadasses > len(allFactories) / 2:
+        tag = Tag.BADASS
 
     numSpawns = [1]     # Default for Unique enemies
     if tag == Tag.CHUMP:
@@ -283,6 +317,7 @@ def CustomSpawnFromPopDef(PopDef) -> CustomSpawn:
     if not spawn.bodyTagObj:
         spawn.spawnPointDef = "None"
         #Log(f"{PopDef.Name} - No BodyTag in {spawn.factoryObj.PathName(spawn.factoryObj)}")
+    spawn.megaMixPools = GetMegaMixPoolsFromFactoryList(allFactories)
     return spawn
 
 
@@ -303,7 +338,7 @@ class NullCustomSpawn(CustomSpawn):
 
 
 class PoolSpawn(Spawn):
-    """Spawns a number of CustomSpawns randomly picked from a pool or CustomSpawns"""
+    """Spawns a number of CustomSpawns randomly picked from a pool of CustomSpawns"""
     def __init__(self, name, tag, numPicks=None, customSpawnList=[], customSpawnWeights=[], spawnPointDef=None, map_whitelist=[], map_blacklist=[]) -> None:
         super().__init__(name, tag, spawnPointDef, map_whitelist, map_blacklist)
         
@@ -313,7 +348,7 @@ class PoolSpawn(Spawn):
             if len(customSpawnWeights) != len(customSpawnList):
                 raise ValueError(f"{name} num weights {len(customSpawnWeights)} don't match num spawns {len(customSpawnList)}!")
         else:
-            self.customSpawnWeights = [1 for x in customSpawnList]
+            self.customSpawnWeights = [BadassTagWeights[x.tag] for x in customSpawnList]
         if numPicks:
             self.numSpawn = numPicks
         else:
@@ -321,11 +356,11 @@ class PoolSpawn(Spawn):
         self.activeSpawnList = [*self.customSpawnList]
         self.activeSpawnWeights = [*self.customSpawnWeights]
     
-    def GetNewFactoryList(self, den, gameStage, rarity=1):
+    def GetNewFactoryList(self, den, gameStage, rarity=1, megaMix=False):
         """Returns the factory list for 'numPicks' randomly chosen CustomSpawns in this PoolSpawn"""
         factoryList = []
         for choice in random.choices(self.activeSpawnList, self.activeSpawnWeights, k=self.numSpawn):
-            factoryList = factoryList + choice.GetNewFactoryList(den, gameStage, rarity)
+            factoryList = factoryList + choice.GetNewFactoryList(den, gameStage, rarity, megaMix)
         return factoryList
     
     def LoadObjects(self, mapNameLower) -> bool:
@@ -357,12 +392,12 @@ class MultiSpawn(Spawn):
         else:
             self.numSpawn = [1 for x in customSpawnList]
     
-    def GetNewFactoryList(self, den, gameStage, rarity=1):
+    def GetNewFactoryList(self, den, gameStage, rarity=1, megaMix=False):
         """Returns the factory list combining each CustomSpawn in this MultiSpawn"""
         factoryList = []
         for i, customSpawn in enumerate(self.customSpawnList):
             for j in range(self.numSpawn[i]):
-                factoryList = factoryList + customSpawn.GetNewFactoryList(den, gameStage, rarity)
+                factoryList = factoryList + customSpawn.GetNewFactoryList(den, gameStage, rarity, megaMix)
         return factoryList
     
     def LoadObjects(self, mapNameLower) -> bool:
@@ -374,10 +409,6 @@ class MultiSpawn(Spawn):
     
     def DenSupportsSpawn(self, den) -> bool:
         return all(x.DenSupportsSpawn(den) for x in self.customSpawnList)
-
-
-class MegaMixSpawn:
-    """Makes multiple random choices from the given CustomSpawns - for mixing enemy variants from different DLCs"""
 
 
 customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
@@ -422,12 +453,15 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                     CustomSpawn("Ass Reeth",Tag.MINIBOSS,   popDef="GD_Population_Psycho.Population.Unique.PopDef_Assassin3"),
                     CustomSpawn("Ass Rouf",Tag.MINIBOSS,    popDef="GD_Population_Rat.Population.Unique.PopDef_Assassin4"),
                 ], map_blacklist=["southpawfactory_p"]),    # Not allowed where they spawn normally
-                # TODO Lynchwood Deputy and Marshals
-            ], customSpawnWeights=[2,2,2,1]),
+                MultiSpawn("Deputy Winger",Tag.MINIBOSS,customSpawnList=[
+                    CustomSpawn("Deputy",Tag.MINIBOSS,      popDef="GD_Population_Sheriff.Population.Pop_Deputy"),
+                    CustomSpawn("Marshals",Tag.CHUMP,[4,5], popDef="GD_Population_Sheriff.Population.Pop_Marshal"),
+                ], map_blacklist=["grass_lynchwood_p"]),
+            ], customSpawnWeights=[2,2,2,1,2]),
 
             # Rats
             MultiSpawn("Mine Rats",Tag.CHUMP,customSpawnList=[
-                CustomSpawn("Tunnel Rats",Tag.CHUMP,range(2,4),     factory="GD_Population_Bandit.Population.PopDef_BanditMix_Lynchwood_RatMiners:PopulationFactoryBalancedAIPawn_6"),  #_2
+                CustomSpawn("Tunnel Rats",Tag.CHUMP,range(2,4),     factory="GD_Population_Bandit.Population.PopDef_BanditMix_Lynchwood_RatMiners:PopulationFactoryBalancedAIPawn_6"),
                 CustomSpawn("Miner Rat Mix",Tag.CHUMP,range(2,5),   popDef="GD_Population_Bandit.Population.PopDef_BanditMix_Lynchwood_RatMiners"),
             ]),
             MultiSpawn("Laney & Co.",Tag.MINIBOSS,customSpawnList=[
@@ -473,7 +507,11 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
             MultiSpawn("BlackOps",Tag.MEDIUM,customSpawnList=[
                 CustomSpawn("Snipers",Tag.CHUMP,range(2,4),     popDef="GD_Population_Engineer.Population.PopDef_BlackOps"),
                 CustomSpawn("Cloakers",Tag.CHUMP,range(2,4),    popDef="GD_Population_Engineer.Population.PopDef_HyperionInfiltrator"),
-                CustomSpawn("Soldier",Tag.CHUMP,[1,2],[4,1],    popDef="GD_Population_Engineer.Population.PopDef_HyperionSoldier"),
+            ]),
+            MultiSpawn("Assault",Tag.MEDIUM,customSpawnList=[
+                # Soldier needs allegiance to match the turrets so no den change
+                CustomSpawn("Soldier",Tag.CHUMP,range(2,4),     popDef="GD_Population_Engineer.Population.PopDef_HyperionSoldier"),
+                CustomSpawn("Rockets",Tag.CHUMP,range(1,3),     factory="GD_Population_Hyperion.Population.PopDef_HyperionMix_Fyrestone:PopulationFactoryBalancedAIPawn_4"),
             ]),
             MultiSpawn("Flying enemies are fun",Tag.MEDIUM,customSpawnList=[
                 CustomSpawn("Jets",Tag.CHUMP,range(3,5),        popDef="GD_Population_Loader.Population.PopDef_LoaderJET"),
@@ -481,23 +519,25 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
             ]),
             CustomSpawn("Wilhelm",Tag.BOSS,factory="GD_Population_Loader.Population.Unique.PopDef_Willhelm:PopulationFactoryBalancedAIPawn_1",spawnPointDef="None",map_blacklist=["tundratrain_p"]),
             
-            # Fauna
-            CustomSpawn("Release the Rakk!",Tag.CHUMP,[4,8],popDef="GD_Population_Rakk.Population.PopDef_Rakk",spawnPointDef="None"),
+            # Fauna - some just basic mixes to pad so not only custom minibosses
+            # Rakk attacks don't work in other maps for some reason
+            #CustomSpawn("Release the Rakk!",Tag.CHUMP,[4,8],popDef="GD_Population_Rakk.Population.PopDef_Rakk",spawnPointDef="None"),
             #CustomSpawn("Skag Mix",Tag.CHUMP,range(4,7),popDef="GD_Population_Skag.Population.PopDef_SkagMix_Regular"),
             #CustomSpawn("Bullymong Mix",Tag.CHUMP,range(4,7),popDef="GD_Population_PrimalBeast.Population.PopDef_PrimalBeastMix_Ash"),
             MultiSpawn("Thresher Mix",Tag.CHUMP,customSpawnList=[
                 CustomSpawn("Threshers",Tag.CHUMP,range(4,7),   popDef="GD_Population_Thresher.Population.PopDef_ThresherMix_Regular"),
-                CustomSpawn("Tentacles",Tag.CHUMP,range(2,7),   popDef="GD_Population_Thresher.Population.PopDef_TentacleMix_Regular")
+                CustomSpawn("Tentacles",Tag.CHUMP,range(4,7),   popDef="GD_Population_Thresher.Population.PopDef_TentacleMix_Regular")
             ]),
-            #CustomSpawn("Spiderant Mix",Tag.CHUMP,range(4,7),popDef="GD_Population_SpiderAnt.Population.PopDef_SpiderantMix_Regular"),
+            CustomSpawn("Spiderant Mix",Tag.CHUMP,range(4,7),popDef="GD_Population_SpiderAnt.Population.PopDef_SpiderantMix_Regular"),
+            CustomSpawn("Sponics",Tag.CHUMP,range(3,7),factory="GD_Population_SpiderAnt.Population.PopDef_SpiderantMix_Regular:PopulationFactoryBalancedAIPawn_2"),
             PoolSpawn("Stalker Mix",Tag.MEDIUM,numPicks=4,customSpawnList=[
                 CustomSpawn("Stalker",Tag.CHUMP,[1,2],          popDef="GD_Population_Stalker.Population.PopDef_Stalker"),
                 CustomSpawn("Badass",Tag.BADASS,[1],            popDef="GD_Population_Stalker.Population.PopDef_StalkerBadass"),
                 CustomSpawn("Ambush",Tag.ULTIMATE_BADASS,[1],   popDef="GD_Population_Stalker.Population.PopDef_StalkerMix_Ambush"),
                 CustomSpawn("Cyclone",Tag.MEDIUM,[1,2],         popDef="GD_Population_Stalker.Population.PopDef_StalkerMix_Cyclone"),
-                CustomSpawn("Stalker",Tag.CHUMP,[1,2],         popDef="GD_Population_Stalker.Population.PopDef_StalkerMix_Needle"),
-                CustomSpawn("Spring",Tag.CHUMP,[1,2],         popDef="GD_Population_Stalker.Population.PopDef_StalkerMix_Spring"),
-            ],customSpawnWeights=[3,1,1,4,3,3]),
+                CustomSpawn("Stalker",Tag.CHUMP,[1,2],          popDef="GD_Population_Stalker.Population.PopDef_StalkerMix_Needle"),
+                CustomSpawn("Spring",Tag.CHUMP,[1,2],           popDef="GD_Population_Stalker.Population.PopDef_StalkerMix_Spring"),
+            ], customSpawnWeights=[3,1,1,4,3,3]),
             
             MultiSpawn("Skag Ma & Pa",Tag.BADASS,customSpawnList=[
                 CustomSpawn("Badass",Tag.BADASS,[2],        popDef="GD_Population_Skag.Population.PopDef_SkagMix_Badass"),
@@ -506,14 +546,14 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
             PoolSpawn("Creepers",Tag.MINIBOSS,numPicks=3,customSpawnList=[
                 CustomSpawn("Badass Creeper",Tag.MINIBOSS,[1],     popDef="GD_Population_Creeper.Population.PopDef_CreeperBadass",spawnPointDef="None"),
                 CustomSpawn("Normal Creeper",Tag.MINIBOSS,[1,2],   popDef="GD_Population_Creeper.Population.PopDef_Creeper",spawnPointDef="None"),
-            ],customSpawnWeights=[1,3],spawnPointDef="None"),
+            ], customSpawnWeights=[1,3], spawnPointDef="None"),
             
             MultiSpawn("Terramorphous Peek",Tag.BOSS,customSpawnList=[
                 CustomSpawn("Spikes",Tag.MINIBOSS,[1,2],[3,1],  popDef="GD_Population_Thresher.Population.Unique.PopDef_TentacleRaidA",spawnPointDef="None"),
                 CustomSpawn("Rock",Tag.MINIBOSS,[1,2],[3,1],    popDef="GD_Population_Thresher.Population.Unique.PopDef_TentacleRaidC",spawnPointDef="None"),
                 CustomSpawn("Beam",Tag.MINIBOSS,[1,2],[3,1],    popDef="GD_Population_Thresher.Population.Unique.PopDef_TentacleRaidD",spawnPointDef="None"),
                 CustomSpawn("Masher",Tag.MINIBOSS,[1,2],[3,1],  popDef="GD_Population_Thresher.Population.Unique.PopDef_TentacleRaidE",spawnPointDef="None"),
-            ],spawnPointDef="None"),
+            ], spawnPointDef="None"),
             CustomSpawn("Terramorphous Peek Fire",Tag.BOSS,[3,4,5],[2,3,1],popDef="GD_Population_Thresher.Population.Unique.PopDef_TentacleRaidF",spawnPointDef="None"),
     
             # None PointDef padding (so we don't get too many boss spawns here)
@@ -528,6 +568,15 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
             #     CustomSpawn("Worms",Tag.CHUMP,range(2,6),   popDef="GD_Orchid_Pop_SandWorm.Population.PopDef_Orchid_SandWorm",spawnPointDef="None"),
             # ],spawnPointDef="None",map_whitelist=["Orchid_OasisTown_P","Orchid_SaltFlats_P"]),
             # CustomSpawn("Rakk Hive - Outta Nowhere!",Tag.BOSS,popDef="GD_Orchid_Pop_RakkHive.Character.PopDef_Orchid_RakkHive",spawnPointDef="None"),
+            PoolSpawn("Avast or we'll blast ya",Tag.CHUMP,numPicks=6,customSpawnList=[
+                CustomSpawn("Captain",Tag.BADASS,   popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateCaptain"),
+                CustomSpawn("Cursed",Tag.MEDIUM,    popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateCursed"),
+                CustomSpawn("Grenadier",Tag.CHUMP,  popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateGrenadier"),
+                CustomSpawn("Hunter",Tag.CHUMP,     popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateHunter"),
+                CustomSpawn("Marauder",Tag.CHUMP,   popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateMarauder"),
+                CustomSpawn("Ninja",Tag.CHUMP,      popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateNinja"),
+                CustomSpawn("Psycho",Tag.CHUMP,     popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PiratePsycho"),
+            ], customSpawnWeights=[2,3,5,5,5,5,5]),
             MultiSpawn("Pirate Raiding Party",Tag.MEDIUM,customSpawnList=[
                 PoolSpawn("Large Lad",Tag.BADASS,customSpawnList=[
                     CustomSpawn("Anchorman",Tag.BADASS, popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_AnchorMan"),
@@ -543,18 +592,18 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                     CustomSpawn("Marauder",Tag.CHUMP,   popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateMarauder"),
                     CustomSpawn("Ninja",Tag.CHUMP,      popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateNinja"),
                     CustomSpawn("Psycho",Tag.CHUMP,     popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PiratePsycho"),
-                ],customSpawnWeights=[2,3,5,5,5,5,5])
+                ], customSpawnWeights=[2,3,5,5,5,5,5])
             ]),
-            MultiSpawn("Would you kindly harvest this Adam",Tag.MINIBOSS,customSpawnList=[
+            MultiSpawn("Would you kindly harvest this midget",Tag.MINIBOSS,customSpawnList=[
                 CustomSpawn("Mr Bubbles",Tag.MINIBOSS,  popDef="GD_Orchid_Pop_BubblesLilSis.Population.PopDef_Orchid_Bubbles"),
                 CustomSpawn("Little Sis",Tag.MINIBOSS,  popDef="GD_Orchid_Pop_BubblesLilSis.Population.PopDef_Orchid_LittleSis"),
-            ],map_blacklist=["Orchid_Spire_P"]),
+            ], map_blacklist=["Orchid_Spire_P"]),
             MultiSpawn("Scarlett Crew",Tag.ULTIMATE_BADASS,customSpawnList=[
                 CustomSpawn("Lt. White",Tag.BADASS,         popDef="GD_Orchid_Pop_ScarlettCrew.Population.PopDef_Orchid_PirateHenchman"),
                 CustomSpawn("Lt. Hoffman",Tag.BADASS,       popDef="GD_Orchid_Pop_ScarlettCrew.Population.PopDef_Orchid_PirateHenchman2"),
                 CustomSpawn("Crew",Tag.MEDIUM,range(1,4),   popDef="GD_Orchid_Pop_ScarlettCrew.Population.PopDef_Betrayal_Mix"),
                 CustomSpawn("Ninjas",Tag.MEDIUM,range(1,3), popDef="GD_Orchid_Pop_ScarlettCrew.Population.PopDef_Orchid_ScarlettNinja"),
-            ],map_blacklist=["Orchid_Spire_P"])
+            ], map_blacklist=["Orchid_Spire_P"])
         ],
         
         DLC.Torgue: [
@@ -579,27 +628,92 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
         ],
         
         DLC.Hammerlock: [
-            CustomSpawn("Spore Pinata Party",Tag.CHUMP,[3,4,5],popDef="GD_Sage_Pop_Spore.Population.PopDef_Sage_GiantSpore_Mix",spawnPointDef="None"),
             CustomSpawn("Elite Savages",Tag.ULTIMATE_BADASS,[2,3,4],[1,2,2],popDef="GD_Sage_Pop_Natives.Population.PopDef_Native_Elite"),
-            # TODO Fauna
+            CustomSpawn("Spore Pinata Party",Tag.CHUMP,[3,4,5],popDef="GD_Sage_Pop_Spore.Population.PopDef_Sage_GiantSpore_Mix",spawnPointDef="None"),
+            MultiSpawn("FOV Scaylions",Tag.MEDIUM,customSpawnList=[
+                CustomSpawn("Champion",Tag.BADASS,      popDef="GD_Sage_Pop_Scaylion.Population.PopDef_Sage_ScaylionMix_Champion",spawnPointDef="None"),
+                CustomSpawn("Mix",Tag.CHUMP,range(2,5), popDef="GD_Sage_Pop_Scaylion.Population.PopDef_Sage_ScaylionMix_Regular",spawnPointDef="None"),
+            ], spawnPointDef="None"),
+            MultiSpawn("FOV Boraks",Tag.MEDIUM,customSpawnList=[
+                CustomSpawn("Badass",Tag.BADASS,        popDef="GD_Sage_Pop_Rhino.Population.PopDef_RhinoMix_Badass",spawnPointDef="None"),
+                CustomSpawn("Baby",Tag.CHUMP,range(2,5), popDef="GD_Sage_Pop_Rhino.Population.PopDef_Sage_RhinoBaby",spawnPointDef="None"),
+            ], spawnPointDef="None")
         ],
         
         DLC.DragonKeep: [
+            # Orcs
             CustomSpawn("Handsome Tower ATTACKS!",Tag.MEDIUM,range(6,15),popDef="GD_Aster_Pop_Orcs.Population.PopDef_OrcsDen_Regular",spawnPointDef="PopPointDef_Orc_OrbitalDrop"),
+            CustomSpawn("Orcsplooooosions",Tag.CHUMP,range(5,11),[1,2,3,3,2,2],popDef="GD_Aster_Pop_Orcs.Population.PopDef_OrcsDen_Kamikaze"),
+            MultiSpawn("Orc Warlord Party",Tag.ULTIMATE_BADASS,customSpawnList=[
+                PoolSpawn("Warlord",Tag.ULTIMATE_BADASS,customSpawnList=[
+                    #CustomSpawn("Grug",Tag.ULTIMATE_BADASS,popDef="GD_Aster_Pop_Orcs.Population.PopDef_Orc_WarlordGrug"),
+                    CustomSpawn("Slog",Tag.ULTIMATE_BADASS,popDef="GD_Aster_Pop_Orcs.Population.PopDef_Orc_WarlordSlog"),
+                    CustomSpawn("Turge",Tag.ULTIMATE_BADASS,popDef="GD_Aster_Pop_Orcs.Population.PopDef_Orc_WarlordTurge")
+                ]),
+                CustomSpawn("Grunts",Tag.CHUMP,range(2,6),popDef="GD_Aster_Pop_Orcs.Population.PopDef_Orc_Grunt"),
+                CustomSpawn("Bashers",Tag.CHUMP,range(1,4),popDef="GD_Aster_Pop_Orcs.Population.PopDef_Orc_Basher"),
+                CustomSpawn("Zerkers",Tag.MEDIUM,range(0,3),popDef="GD_Aster_Pop_Orcs.Population.PopDef_Orczerker"),
+            ]),
+            # Spiders
             MultiSpawn("Arachne Hunting Party",Tag.MEDIUM,customSpawnList=[
                 CustomSpawn("Reapers",Tag.MEDIUM,range(4,8),    popDef="GD_Aster_Pop_Spiders.Population.PopDef_Arachne"),
                 CustomSpawn("Minions",Tag.CHUMP,range(4,8),     popDef="GD_Aster_Pop_Spiders.Population.PopDef_SpiderDen_Regular")
             ]),
-            # TODO Orcs, Knights, Wizards, Treants, Dwarfs+Golem
+            # CBA load Dark Forest and fix stumpy materials just for this
+            #CustomSpawn("Pixie",Tag.BOSS,popDef="GD_Aster_Pop_Wisp.Population.PopDef_Aster_Wisp",spawnPointDef="None"),
+            # Knights
+            MultiSpawn("Target Practise",Tag.MEDIUM,customSpawnList=[
+                CustomSpawn("Badass Archer",Tag.BADASS,popDef="GD_Aster_Pop_Knights.Population.PopDef_Knight_BadassFireArcher"),
+                CustomSpawn("Archers",Tag.CHUMP,range(2,5),popDef="GD_Aster_Pop_Knights.Population.PopDef_Knight_Archer")
+            ]),
+            MultiSpawn("Paladins",Tag.MEDIUM,customSpawnList=[
+                CustomSpawn("Paladins",Tag.MEDIUM,[3],popDef="GD_Aster_Pop_Knights.Population.PopDef_Knight_Paladin"),
+                CustomSpawn("Chumps",Tag.CHUMP,range(3,7),popDef="GD_Aster_Pop_Knights.Population.PopDef_KnightsDen_Regular")
+            ]),
+            CustomSpawn("It's time to CLEAN THE FLOOR WITH YOU",Tag.BOSS,range(5,11),popDef="GD_Aster_Pop_Knights.Population.PopDef_Knight_Broomstick",spawnPointDef="None"),
+            # Skeletons
+            MultiSpawn("Immortals",Tag.MEDIUM,customSpawnList=[
+                CustomSpawn("Immortal",Tag.MEDIUM,[3],popDef="GD_Aster_Pop_Skeletons.Population.PopDef_SkeletonImmortal"),
+                PoolSpawn("Distractions",Tag.CHUMP,numPicks=4,customSpawnList=[
+                    CustomSpawn("Skellys",Tag.CHUMP,popDef="GD_Aster_Pop_Skeletons.Population.PopDef_SkeletonCrystal"),
+                    CustomSpawn("Suiciders",Tag.CHUMP,popDef="GD_Aster_Pop_Skeletons.Population.PopDef_SkeletonSuicide"),
+                    CustomSpawn("Crystals",Tag.CHUMP,popDef="GD_Aster_Pop_Skeletons.Population.PopDef_SkeletonCrystal"),
+                    CustomSpawn("Warriors",Tag.CHUMP,popDef="GD_Aster_Pop_Skeletons.Population.PopDef_SkeletonWarrior")
+                ])
+            ]),
+            PoolSpawn("Skeleton King",Tag.MINIBOSS,customSpawnList=[
+                CustomSpawn("Aliah",Tag.MINIBOSS,   popDef="GD_Aster_Pop_Skeletons.Population.PopDef_SkeletonKing_Aliah"),
+                CustomSpawn("Crono",Tag.MINIBOSS,   popDef="GD_Aster_Pop_Skeletons.Population.PopDef_SkeletonKing_Crono"),
+                CustomSpawn("Nazar",Tag.MINIBOSS,   popDef="GD_Aster_Pop_Skeletons.Population.PopDef_SkeletonKing_Nazar"),
+                CustomSpawn("Seth",Tag.MINIBOSS,    popDef="GD_Aster_Pop_Skeletons.Population.PopDef_SkeletonKing_Seth")
+            ], map_blacklist="Dead_Forest_P"),
+            # Wizards
+            CustomSpawn("Wizards",Tag.MEDIUM,[2,3],[3,1],popDef="GD_Aster_Pop_Wizards.Population.PopDef_WizardsDen_Regular"),
+            CustomSpawn("AbracaMAGIC",Tag.BADASS,popDef="GD_Aster_Pop_Wizards.Population.PopDef_WizardsDen_Badass"),
+            # MultiSpawn("Familial Reconciliation",Tag.MINIBOSS,customSpawnList=[
+            #     CustomSpawn("Edgar",Tag.MINIBOSS,popDef="GD_Aster_Pop_Wizards.Population.PopDef_Wizard_DeadBrotherEdgar"),
+            #     CustomSpawn("Simon",Tag.MINIBOSS,popDef="GD_Aster_Pop_Wizards.Population.PopDef_Wizard_DeadBrotherSimon"),
+            # ]),
+            # Mines
+            CustomSpawn("Dwarfzerkers",Tag.CHUMP,range(4,7),popDef="GD_Aster_Pop_Dwarves.Population.PopDef_Dwarfzerker"),
+            MultiSpawn("Golem Wranglers",Tag.MEDIUM,customSpawnList=[
+                PoolSpawn("Golem Choice",Tag.MEDIUM,customSpawnList=[
+                    CustomSpawn("Golem",Tag.MEDIUM,         popDef="GD_Aster_Pop_Golems.Population.PopDef_GolemRock",spawnPointDef="None"),
+                    CustomSpawn("Badass Golem",Tag.BADASS,  popDef="GD_Aster_Pop_Golems.Population.PopDef_Golem_Badass",spawnPointDef="None"),
+                ], customSpawnWeights=[2,1], spawnPointDef="None"),
+                CustomSpawn("Dwarfs",Tag.CHUMP,range(3,6),  popDef="GD_Aster_Pop_Dwarves.Population.PopDef_DwarfsDen_Regular",spawnPointDef="None"),
+                CustomSpawn("Badass Dwarf",Tag.BADASS,[0,1],popDef="GD_Aster_Pop_Dwarves.Population.PopDef_Dwarf_Badass",spawnPointDef="None")
+            ], spawnPointDef="None"),
+            CustomSpawn("Flying Golems",Tag.MEDIUM,range(2,5),popDef="GD_Aster_Pop_Golems.Population.PopDef_GolemFlying"),
+            CustomSpawn("Maxibillion",Tag.MINIBOSS,popDef="GD_Aster_Pop_Golems.Population.PopDef_GolemFlying_Maxibillion"),
         ],
         
         DLC.FFS: [
             CustomSpawn("Sanctuary ATTACKS!",Tag.MEDIUM,range(4,11),popDef="GD_Anemone_InfectedPodTendril.Population.PopDef_InfectedPodTendril",spawnPointDef="PopPointDef_OrbitalDrop_Infection_Test"),
-            # Golem only matches specific PointDef so needs to be None, and to mix with Skags
             MultiSpawn("Golem Skag Walking Service",Tag.MEDIUM,customSpawnList=[
                 CustomSpawn("Golem",Tag.BADASS,popDef="GD_Anemone_Pop_Infected.Population.PopDef_InfectedGolem_Badass",spawnPointDef="None"),
                 CustomSpawn("Skags",Tag.CHUMP,range(3,6),popDef="GD_Anemone_Pop_WildLife.Population.PopDef_Infected_SkagMIX",spawnPointDef="None"),
-            ],spawnPointDef="None"),
+            ], spawnPointDef="None"),
             PoolSpawn("Sentient Mutating Funguys In My Grill",Tag.MEDIUM,numPicks=4,customSpawnList=[
                 CustomSpawn("Bruisers",Tag.MEDIUM,[1,2],    popDef="GD_Anemone_Pop_Infected.Population.PopDef_InfectedBruiser"),
                 CustomSpawn("Psychos",Tag.CHUMP,[1,2],      popDef="GD_Anemone_Pop_Infected.Population.PopDef_InfectedCurse"),
@@ -625,12 +739,25 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                 ]),
                 CustomSpawn("Grunts",Tag.CHUMP,range(3,6),popDef="GD_Anemone_Pop_NP.Population.PopDef_NewPandoraMIX_Grunts"),
             ]),
+            MultiSpawn("Dark Web",Tag.MINIBOSS,customSpawnList=[
+                CustomSpawn("Dark Web",Tag.MINIBOSS,popDef="GD_Anemone_A_Queen_Digi.Population.PopDef_Anemone_TheDarkWeb"),
+                CustomSpawn("Minions",Tag.CHUMP,[4],popDef="GD_Anemone_DarkWeb_Minions.Population.PopDef_Anemone_DarkWeb_Minions"),
+            ], map_blacklist=["OldDust_P"]),
             CustomSpawn("Cassius",Tag.BOSS,popDef="GD_Anemone_Pop_Cassius.GD_Anemone_PopDef_Cassius",spawnPointDef="None",map_blacklist=["ResearchCenter_P"]),
             
             CustomSpawn("FOV Infected Pods",Tag.MEDIUM,range(3,8),popDef="GD_Anemone_InfectedPodTendril.Population.PopDef_InfectedPodTendril",spawnPointDef="None"),
         ],
         
         DLC.Headhunters: [
+            MultiSpawn("Send It, Chefs",Tag.ULTIMATE_BADASS,customSpawnList=[
+                PoolSpawn("ButcherBoss",Tag.ULTIMATE_BADASS,customSpawnList=[
+                    CustomSpawn("Gouda Remsay",Tag.ULTIMATE_BADASS, popDef="GD_ButcherBoss.Balance.PopDef_ButcherBoss"),
+                    CustomSpawn("Brulee",Tag.ULTIMATE_BADASS,       popDef="GD_ButcherBoss2.Balance.PopDef_ButcherBoss2"),
+                    CustomSpawn("Bork Bork",Tag.ULTIMATE_BADASS,    popDef="GD_ButcherBoss3.Balance.PopDef_ButcherBoss3"),
+                    CustomSpawn("Rat Chef",Tag.ULTIMATE_BADASS,     popDef="GD_RatChef.Balance.PopDef_RatChef")
+                ]),
+                CustomSpawn("Butchers",Tag.CHUMP,range(3,6),popDef="GD_Butcher.Balance.PopDef_Butcher")
+            ], map_blacklist=["Hunger_P"]),
             PoolSpawn("Tribute Pair",Tag.ULTIMATE_BADASS,customSpawnList=[
                 MultiSpawn("Tributes of Sawtooth",Tag.ULTIMATE_BADASS,customSpawnList=[
                     CustomSpawn("Female",Tag.BADASS,    popDef="GD_CraterFemale.Balance.PopDef_CraterFemale"),
@@ -660,7 +787,14 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                     CustomSpawn("Female",Tag.BADASS,    popDef="GD_SandFemale.Balance.PopDef_SandFemale"),
                     CustomSpawn("Male",Tag.BADASS,      popDef="GD_SandMale.Balance.PopDef_SandMale")
                 ]),
-            ],map_blacklist=["Hunger_P"]),
+            ], map_blacklist=["Hunger_P"]),
+            PoolSpawn("Love Thresher",Tag.MINIBOSS,customSpawnList=[
+                CustomSpawn("Blue",Tag.BADASS,     popDef="GD_Nast_ThresherShared.Population.PopDef_Nast_ThresherBlue", spawnPointDef="None"),
+                CustomSpawn("Green",Tag.MEDIUM,    popDef="GD_Nast_ThresherShared.Population.PopDef_Nast_ThresherGreen", spawnPointDef="None"),
+                CustomSpawn("Orange",Tag.BOSS,     popDef="GD_Nast_ThresherShared.Population.PopDef_Nast_ThresherOrange", spawnPointDef="None"),
+                CustomSpawn("Purple",Tag.MINIBOSS, popDef="GD_Nast_ThresherShared.Population.PopDef_Nast_ThresherPurple", spawnPointDef="None"),
+                CustomSpawn("White",Tag.CHUMP,     popDef="GD_Nast_ThresherShared.Population.PopDef_Nast_ThresherWhite", spawnPointDef="None"),
+            ], map_blacklist=["Distillery_P"], spawnPointDef="None"),
             MultiSpawn("Crabworms",Tag.CHUMP,customSpawnList=[
                 CustomSpawn("Craboid",Tag.CHUMP,range(0,3),     popDef="GD_Population_Crabworms.Population.PopDef_Craboid"),
                 CustomSpawn("CraboidGiant",Tag.MEDIUM,[0,1],    popDef="GD_Population_Crabworms.Population.PopDef_CraboidGiant"),
@@ -679,3 +813,148 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
         ]
     }
 }[ModMenu.Game.GetCurrent()]
+
+megaMixSubstitutionPools: List[List[str]] = {
+    ModMenu.Game.BL2:[
+        # Loaders
+        [
+            "GD_Population_Loader.Population.PopDef_LoaderBUL:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Loader.Population.PopDef_Iris_LoaderMix_Forge:PopulationFactoryBalancedAIPawn_1",
+        ],
+        [
+            "GD_Population_Loader.Population.PopDef_LoaderEXP:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Loader.Population.PopDef_Iris_LoaderMix_Forge:PopulationFactoryBalancedAIPawn_0",
+        ],
+        [
+            "GD_Population_Loader.Population.PopDef_LoaderBadass:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Loader.Population.PopDef_Iris_LoaderMix_Forge:PopulationFactoryBalancedAIPawn_2",
+        ],
+        [
+            "GD_Population_Loader.Population.PopDef_LoaderGUN:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Loader.Population.PopDef_Iris_LoaderMix_Forge:PopulationFactoryBalancedAIPawn_3",
+        ],
+        [
+            "GD_Population_Loader.Population.PopDef_LoaderHOT:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Loader.Population.PopDef_Iris_LoaderMix_Forge:PopulationFactoryBalancedAIPawn_4",
+        ],
+        [
+            "GD_Population_Loader.Population.PopDef_LoaderJET:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Loader.Population.PopDef_Iris_LoaderMix_Forge:PopulationFactoryBalancedAIPawn_5",
+        ],
+        [
+            "GD_Population_Loader.Population.PopDef_LoaderPWR:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Loader.Population.PopDef_Iris_LoaderMix_Forge:PopulationFactoryBalancedAIPawn_6",
+        ],
+        [
+            "GD_Population_Loader.Population.PopDef_LoaderRPG:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Loader.Population.PopDef_Iris_LoaderMix_Forge:PopulationFactoryBalancedAIPawn_7",
+        ],
+        [   # JNK with ARR
+            "GD_Population_Loader.Population.PopDef_LoaderJunk:PopulationFactoryBalancedAIPawn_1",
+            "GD_Orchid_Pop_Loader.Population.PopDef_Orchid_Loader_RefineryMix:PopulationFactoryBalancedAIPawn_4",
+        ],
+        [   # Psychos
+            "GD_Population_Psycho.Population.PopDef_Psycho:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_Psycho.Population.PopDef_PsychoBurning:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_Psycho.Population.PopDef_PsychoSnow:PopulationFactoryBalancedAIPawn_0",
+            "GD_Allium_PsychoKitchen.Balance.PopDef_PsychoKitchen:PopulationFactoryBalancedAIPawn_0",
+            "GD_Anemone_Pop_Bandits.Balance.PopDef_Ini_Psycho:PopulationFactoryBalancedAIPawn_0",
+            "GD_HodunkPsycho.Balance.PopDef_HodunkPsycho:PopulationFactoryBalancedAIPawn_0",
+            "GD_Iris_Population_Biker.Gangs.PopDef_Iris_BikerPsycho_Angels:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Biker.Gangs.PopDef_Iris_BikerPsycho_Dragon:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Biker.Gangs.PopDef_Iris_BikerPsycho_Torgue:PopulationFactoryBalancedAIPawn_1",
+            "GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PiratePsycho:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_AlliumXmas.Population.PopDef_SnowPsychos:PopulationFactoryBalancedAIPawn_1",
+            "GD_HodunkPsycho.Balance.PopDef_HodunkPsycho:PopulationFactoryBalancedAIPawn_0",
+            "GD_Nast_Zaford_Grunt.Balance.PopDef_Nast_ZafordMix:PopulationFactoryBalancedAIPawn_0",
+            "GD_Psycho_Digi.Population.PopDef_Psycho_Digi:PopulationFactoryBalancedAIPawn_0",
+        ],
+        [   # Suicide Psychos
+            "GD_Population_Psycho.Population.PopDef_PsychoSuicide:PopulationFactoryBalancedAIPawn_0",
+            "GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_MarauderMix:PopulationFactoryBalancedAIPawn_9",
+        ],
+        [   # Badass Psychos
+            "GD_Population_Psycho.Population.PopDef_PsychoBadass:PopulationFactoryBalancedAIPawn_0",
+            "GD_Iris_Population_Psycho.Population.PopDef_Iris_PsychoBadassBiker:PopulationFactoryBalancedAIPawn_4",
+            "GD_Lobelia_TannisPops.Population.PopDef_BanditMixture:PopulationFactoryBalancedAIPawn_18",
+        ],
+        [   # Marauders
+            "GD_Population_Marauder.Population.PopDef_Marauder:PopulationFactoryBalancedAIPawn_0",
+            "GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateMarauder:PopulationFactoryBalancedAIPawn_0",
+            "GD_Iris_Population_Biker.Gangs.PopDef_Iris_Biker_Angels:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Biker.Gangs.PopDef_Iris_Biker_Dragon:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Biker.Gangs.PopDef_Iris_Biker_Torgue:PopulationFactoryBalancedAIPawn_1",
+            "GD_MarauderRegular_Digi.Population.PopDef_Marauder_Regular_Digi:PopulationFactoryBalancedAIPawn_2",
+        ],
+        [   # Marauder Grunts (Can't use cover)
+            "GD_Population_Marauder.Population.PopDef_MarauderGrunt:PopulationFactoryBalancedAIPawn_0",
+            "GD_Nast_Hodunk_Grunt.Balance.PopDef_Nast_HodunkGrunt:PopulationFactoryBalancedAIPawn_0",
+            "GD_Nast_Zaford_Grunt.Balance.PopDef_Nast_ZafordGrunt:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_AlliumXmas.Population.PopDef_SnowMarauders:PopulationFactoryBalancedAIPawn_0",
+            "GD_Allium_MarauderKitchen.Balance.PopDef_MarauderKitchen:PopulationFactoryBalancedAIPawn_0",
+        ],
+        [   # Badass Marauders
+            "GD_Population_Marauder.Population.PopDef_MarauderBadass:PopulationFactoryBalancedAIPawn_0",
+            "GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateCaptain:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_AlliumXmas.Population.PopDef_SnowBanditMix:PopulationFactoryBalancedAIPawn_3",
+            "GD_HodunkBadass.Balance.PopDef_HodunkBadass:PopulationFactoryBalancedAIPawn_0",
+            "GD_ZafordBadass.Balance.PopDef_ZafordBadass:PopulationFactoryBalancedAIPawn_0",
+            "GD_MarauderBadass_Digi.Population.PopDef_MarauderBadass_Digi:PopulationFactoryBalancedAIPawn_0",
+        ],
+        [   # Midgets
+            "GD_Population_Midget.Population.PopDef_MidgetMix_Regular:PopulationFactoryBalancedAIPawn_11",
+            #"GD_Population_Midget.Population.PopDef_MidgetBone1:PopulationFactoryBalancedAIPawn_0",    # Fridge package not loaded
+            "GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_MarauderMix:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Biker.Gangs.PopDef_Iris_BikerMidget_Angels:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Biker.Gangs.PopDef_Iris_BikerMidget_Dragon:PopulationFactoryBalancedAIPawn_1",
+            "GD_Iris_Population_Biker.Gangs.PopDef_Iris_BikerMidget_Torgue:PopulationFactoryBalancedAIPawn_1",
+            "GD_Allium_Butcher_Midget.Balance.PopDef_ButcherMidget:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_AlliumXmas.Population.PopDef_SnowBanditMix:PopulationFactoryBalancedAIPawn_2",
+            "GD_PsychoMidget_Digi.Population.PopDef_PsychoMidget_Digi:PopulationFactoryBalancedAIPawn_0",
+        ],
+        [   # Bruisers
+            "GD_Population_Bruiser.Population.PopDef_Bruiser:PopulationFactoryBalancedAIPawn_0",
+            "GD_Iris_Population_Biker.Gangs.PopDef_Iris_BikerBruiser_Dragon:PopulationFactoryBalancedAIPawn_3",
+            "GD_Iris_Population_Bruiser.Population.PopDef_Iris_BikerBruiser:PopulationFactoryBalancedAIPawn_3",
+            "GD_Anemone_Pop_Infected.Population.PopDef_Infected_MIX:PopulationFactoryBalancedAIPawn_4",
+        ],
+        [   # Nomads
+            "GD_Population_Nomad.Population.PopDef_Nomad:PopulationFactoryBalancedAIPawn_0",
+            "GD_Lobelia_TannisPops.Population.PopDef_BanditMixture:PopulationFactoryBalancedAIPawn_2",
+        ],
+        [   # Goliaths
+            "GD_Population_Goliath.Population.PopDef_Goliath:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_AlliumXmas.Population.PopDef_SnowBanditMix:PopulationFactoryBalancedAIPawn_4",
+            "GD_Anemone_Pop_Infected.Population.PopDef_InfectedGoliath:PopulationFactoryBalancedAIPawn_0",
+        ],
+        [   # Goliath Blaster with Arena Goliath
+            "GD_Population_Goliath.Population.PopDef_GoliathMix_Regular:PopulationFactoryBalancedAIPawn_14",
+            "GD_Iris_Population_Goliath.Population.PopDef_Iris_ArenaGoliath:PopulationFactoryBalancedAIPawn_0",
+        ],
+        [   # Stalker with Tri-tail stalker - Ambush or Needle?
+            "GD_Population_Stalker.Population.PopDef_StalkerMix_Needle:PopulationFactoryBalancedAIPawn_0",
+            "GD_Orchid_Pop_Stalker.Population.PopDef_Orchid_StalkerMix_Regular:PopulationFactoryBalancedAIPawn_3",
+        ],
+        [   # Hyperion Engineer with Torgue Engineer
+            "GD_Population_Engineer.Population.PopDef_EngineerArms:PopulationFactoryBalancedAIPawn_0",
+            "GD_Iris_Population_Biker.Gangs.PopDef_Iris_EngineerArmsBarrel_Torgue:PopulationFactoryBalancedAIPawn_0",
+        ],
+        [   # Slag Skag with Digi Skag
+            "GD_Population_Skag.Population.PopDef_SkagMix_Badass:PopulationFactoryBalancedAIPawn_3",
+            "GD_SkagBadassSlag_Digi.Population.PopDef_SkagBadassSlag_Digi:PopulationFactoryBalancedAIPawn_2",
+        ],
+        [   # Slagged Spore with Infected Spore
+            "GD_Sage_Pop_Spore.Population.PopDef_Sage_GiantSpore_Mix:PopulationFactoryBalancedAIPawn_4",
+            "GD_Anemone_Pop_WildLife.Population.PopDef_SporeMIX_OldDust2:PopulationFactoryBalancedAIPawn_5",
+        ],
+        [   # Varkids (but not Bloods) with Tropical Varkids
+            "GD_Population_BugMorph.Population.PopDef_BugMorphMix_Regular:PopulationFactoryBalancedAIPawn_1",
+            "GD_Population_BugMorphs.Population.PopDef_BugMorph_TropicalMix:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_BugMorphs.Population.PopDef_BugMorph_TropicalMix:PopulationFactoryBalancedAIPawn_1",
+            "GD_Population_BugMorphs.Population.PopDef_BugMorph_TropicalMix:PopulationFactoryBalancedAIPawn_2",
+        ],
+    ],
+    ModMenu.Game.TPS:[
+    ]
+}[ModMenu.Game.GetCurrent()]
+"""Each list is a pool of PopulationFactoryBalancedAIPawn - we can get the AIPawnBalanceDefinition from the factory here to compare"""

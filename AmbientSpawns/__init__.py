@@ -1,6 +1,5 @@
-from typing import List, Tuple, Union
-import enum
 import math, random
+from typing import Dict, List, Tuple
 import unrealsdk
 from unrealsdk import Log
 
@@ -8,7 +7,12 @@ from Mods import ModMenu
 from Mods.AmbientSpawns import custom_spawns
 from Mods.AmbientSpawns import level_packages
 from Mods.AmbientSpawns.level_packages import *
-from Mods.UserFeedback import ShowChatMessage, TrainingBox
+try:
+    from Mods.UserFeedback import ShowChatMessage, TrainingBox
+except ImportError as ex:
+    import webbrowser
+    webbrowser.open("https://bl-sdk.github.io/requirements/?mod=AmbientSpawns&UserFeedback")
+    raise ex
 
 """
 Blacklists to exclude spawning in boss maps and slaughters,
@@ -34,7 +38,7 @@ BLACKLIST_MAPS = {
         "Iris_DL1_P",
         "Sage_HyperionShip_P",
         "Village_P",
-        "CastleKeep_P", # Crashes maybe due to climb spawn point?
+        "CastleKeep_P",     # Crashes maybe due to climb spawn point?
         "TempleSlaughter_P",
         "DungeonRaid_P",
         "SanctIntro_P",
@@ -56,7 +60,7 @@ BLACKLIST_MAPS = {
     ]
 }[ModMenu.Game.GetCurrent()]
 
-BLACKLIST_POPDEFS = {   # Static enemies or minibosses that aren't caught
+BLACKLIST_POPDEFS = {
     ModMenu.Game.BL2: [
         None,
         "PopDef_SavageLee",
@@ -70,15 +74,28 @@ BLACKLIST_POPDEFS = {   # Static enemies or minibosses that aren't caught
         "PopDef_Hyperion_LargeTurret",
         "PopDef_Hyperion_VOGTurret",
         "PopDef_TentacleA",
+        "PopDef_Iris_RakkMix_Crater",
+        "PopDef_Iris_BikeWithMotorMama",
+        "PopDef_Iris_RaidMamaSupportBike",
+        "PopDef_Iris_BikeWithDriverAndSidecarMix",  # Motor Mama arena sides
         "PopDef_WitchDoctorMix",
         "PopDef_WitchDoctorFire",
+        "PopDef_FanBoat_Manned",
         "PopDef_DrifterRaid",
+        "PopDef_Treant",   # Just too many
+        "PopDef_Treant_StandStill",
+        "PopDef_DwarfsDen_StandStill",
+        "PopDef_Knight_Archer_StandStill",
+        "PopDef_Knight_BadassFireArcher_Standstill",
+        "PopDef_SkeletonArcher_StandStill",
+        "PopDef_SkeletonArcherMage_StandStill",
         "PopDef_FlamingSkull",
         "PopDef_Anemone_AutoCannon"
     ],
     ModMenu.Game.TPS: [
     ]
 }[ModMenu.Game.GetCurrent()]
+"""Static enemies or minibosses that aren't caught, or dens that we want to exclude"""
 
 BLACKLIST_ALLEGIANCES = {
     ModMenu.Game.BL2: [
@@ -95,24 +112,66 @@ BLACKLIST_ALLEGIANCES = {
     ]
 }[ModMenu.Game.GetCurrent()]
 
-MIN_TIME_DURATION = 10
+MIN_TIME_DURATION = 20
 
-POPDEF_PREFIX_EXCLUDED_FROM_FOV_CHECKS = [  # Enemies that spawn cloaked so look OK in view
+POPDEF_PREFIX_EXCLUDED_FROM_FOV_CHECKS = [ 
     "PopDef_Stalker",
     "PopDef_Thresher",
+    "PopDef_Tentacle",
     "PopDef_Native_Elite",
+    "PopDef_InfectedPod",
 ]
+"""Enemies that spawn cloaked so look OK in view"""
 
-FACTORY_EXCLUDED_FROM_ALLEGIANCE_CHANGE = [ # Enemies whose allegiance is important e.g. Wilhelm needs to match his surveyors
+FACTORY_EXCLUDED_FROM_ALLEGIANCE_CHANGE = [
     "GD_Population_Loader.Population.Unique.PopDef_Willhelm:PopulationFactoryBalancedAIPawn_1",
+    "GD_Population_Engineer.Population.PopDef_HyperionSoldier:PopulationFactoryBalancedAIPawn_0",
+    "GD_Population_Hyperion.Population.PopDef_HyperionMix_Fyrestone:PopulationFactoryBalancedAIPawn_4", # Is fine, but grouped with soldier for a CustomSpawn
+    "GD_Aster_Pop_Golems.Population.PopDef_GolemRock:PopulationFactoryBalancedAIPawn_0",
+    "GD_Aster_Pop_Golems.Population.PopDef_Golem_Badass:PopulationFactoryBalancedAIPawn_0",
     "GD_Anemone_Pop_Infected.Population.PopDef_InfectedGolem_Badass:PopulationFactoryBalancedAIPawn_0"
 ]
+"""Enemies whose allegiance is important e.g. Wilhelm needs to match his surveyors"""
+
 
 class SpawnPool(enum.IntEnum):
     DEN = enum.auto()
     LEVEL = enum.auto()
     DLC = enum.auto()
     GAME = enum.auto()
+
+
+class DenSpawnInfo:
+    """Stores the info and spawns that we use from a den"""
+    def __init__(self) -> None:
+        self.denObject: object
+        self.needsFOVCheck: bool = True
+        self.baseSpawn: custom_spawns.CustomSpawn
+        """The default spawns from this den's own PopDef"""
+        self.levelSpawns: List[custom_spawns.CustomSpawn] = []
+        """All valid spawns from this level"""
+        self.customSpawns: List[custom_spawns.CustomSpawn] = []
+        """All valid spawns from our custom spawn list"""
+        self.fovCustomSpawns: List[custom_spawns.CustomSpawn] = []
+        """All valid custom spawns that can spawn from a blank point in view"""
+        self.blankPoints: List[object] = []
+        """List of all blank spawn points for this den"""
+    
+    def FindFOVSpawns(self):
+        if len(self.blankPoints) == 0:
+            self.needsFOVCheck = False
+            return
+        self.needsFOVCheck = True
+        for spawn in self.customSpawns:
+            if isinstance(spawn, custom_spawns.CustomSpawn):
+                if spawn.popDef:
+                    path = spawn.popDef
+                else:
+                    path = spawn.factory
+                if any(x in path for x in POPDEF_PREFIX_EXCLUDED_FROM_FOV_CHECKS):
+                    self.fovCustomSpawns.append(spawn)
+                    self.needsFOVCheck = False
+
 
 class AmbientSpawns(ModMenu.SDKMod):
     Name: str = "Ambient Spawns"
@@ -123,7 +182,7 @@ class AmbientSpawns(ModMenu.SDKMod):
         "If enabled, enemies from all levels are loaded upon reaching the main menu, causing a delay.\n" \
         "This may cause some jank with textures."
     Author: str = "Siggles"
-    Version: str = "1.0.0"
+    Version: str = "1.1.0"
     SaveEnabledState: ModMenu.EnabledSaveType = ModMenu.EnabledSaveType.LoadWithSettings
 
     Types: ModMenu.ModTypes = ModMenu.ModTypes.Gameplay
@@ -142,26 +201,20 @@ class AmbientSpawns(ModMenu.SDKMod):
     currentSpawnList = []
     lastChosenSpawnPoint = None
     
-    minDistance: int = 10
-    maxDistance: int = 10000
-    canSpawnWhilstInCombat = False
-    increaseSpawnCap = True
-    customSpawnPercentage = 30
     initialMaxActorCost = None
-    provokeDens = True
+    """To reset PopulationMaster's MaxActorCost on blacklisted maps or option disabled."""
     
-    megaMixActive = False
+    megaMixActive = None
     pool: SpawnPool = None
     currentDLC: DLC = DLC.BL2
-    heliosActor = None
 
-    # Keybinds = [ModMenu.Keybind("Spawn Now", "P")]
+    Keybinds = [ModMenu.Keybind("Spawn Now", "P")]
 
-    # def GameInputPressed(self, bind: ModMenu.Keybind, event: ModMenu.InputEvent) -> None:
-    #     if event != ModMenu.InputEvent.Pressed:
-    #         return
-    #     self.EndSpawning()
-    #     self.DoTheThing()
+    def GameInputPressed(self, bind: ModMenu.Keybind, event: ModMenu.InputEvent) -> None:
+        if event != ModMenu.InputEvent.Pressed:
+            return
+        self.EndSpawning()
+        self.DoTheThing()
 
     def __init__(self) -> None:
         super().__init__()
@@ -169,14 +222,16 @@ class AmbientSpawns(ModMenu.SDKMod):
         self.mapDens = []
         """ A list of all PopulationOpportunityDens in the current map with at SpawnData least one available SpawnPoint """
         self.mapPopDefs = []
-        """ A list of all PopDefs in the current map - to use for custom Spawn Pools"""
+        """ A list of all PopDefs in the current map - to use for custom Spawn Pools """
+        self.mapDenInfos: List[DenSpawnInfo] = []
+        """ A list of all DenSpawnInfos for each Den in the current map """
         
         self.frequencySlider = ModMenu.Options.Slider(
             Caption="Frequency",
             Description="How long (on average) between ambient spawns, in seconds.",
             StartingValue=100,
             MinValue=MIN_TIME_DURATION,
-            MaxValue=200,
+            MaxValue=300,
             Increment=5,
         )
         self.combatSwitch = ModMenu.Options.Boolean(
@@ -210,13 +265,6 @@ class AmbientSpawns(ModMenu.SDKMod):
             Description="Whether ambient spawns cause patrolling enemies linked to the same spawn point to attack too.",
             StartingValue=True,
         )
-        self.spawnPoolSpinner = ModMenu.Options.Spinner(
-            Caption="Custom Spawn Pools",
-            Description="Which enemies are available for custom ambient spawns." \
-                    "\nChanging this may require a game restart.",
-            StartingValue=SpawnPool.LEVEL.name,
-            Choices=[x.name for x in SpawnPool],
-        )
         self.customSpawnSlider = ModMenu.Options.Slider(
             Caption="Custom Spawn Percentage",
             Description="The percentage of ambient spawns that are bespoke groups of enemies, if any are available for the den.",
@@ -225,6 +273,18 @@ class AmbientSpawns(ModMenu.SDKMod):
             MaxValue=100,
             Increment=5,
         )
+        self.spawnPoolSpinner = ModMenu.Options.Spinner(
+            Caption="Custom Spawn Pools",
+            Description="Which enemies are available for custom ambient spawns." \
+                    "\nChanging this may require a game restart.",
+            StartingValue=SpawnPool.LEVEL.name,
+            Choices=[x.name for x in SpawnPool],
+        )
+        self.megaMixSwitch = ModMenu.Options.Boolean(
+            Caption="Mega Mix Spawns",
+            Description="Whether enemies can substituted for similar variants from other DLCS, e.g. Hyperion loaders with Torgue loaders.",
+            StartingValue=False,
+        )
         self.Options = [
             self.frequencySlider,
             self.combatSwitch,
@@ -232,8 +292,9 @@ class AmbientSpawns(ModMenu.SDKMod):
             self.distanceMinSlider,
             self.distanceMaxSlider,
             self.provokeDenSwitch,
-            self.spawnPoolSpinner,
             self.customSpawnSlider,
+            self.spawnPoolSpinner,
+            self.megaMixSwitch,
         ]
     
     def ModOptionChanged(self, option: ModMenu.Options.Base, new_value) -> None:
@@ -242,29 +303,20 @@ class AmbientSpawns(ModMenu.SDKMod):
             self.timeRandomRange = int(new_value / 3)
             if self.timeForNextSpawn > self.averageTimeForNextSpawn:
                 self.timeForNextSpawn = self.averageTimeForNextSpawn
-        elif option == self.combatSwitch:
-            self.canSpawnWhilstInCombat = new_value
-        elif option == self.spawnCapSwitch:
-            self.increaseSpawnCap = new_value
-        elif option == self.distanceMinSlider:
-            self.minDistance = new_value
-        elif option == self.distanceMaxSlider:
-            self.maxDistance = new_value
-        elif option == self.provokeDenSwitch:
-            self.provokeDens = new_value
+        elif option == self.megaMixSwitch:
+            if self.megaMixActive and new_value:
+                self.ShowPackageLoadingHelp()
+            self.megaMixActive = new_value
         elif option == self.spawnPoolSpinner:
-            if self.pool and \
-                (self.pool < SpawnPool.DLC and SpawnPool[new_value] >= SpawnPool.DLC or \
-                self.pool >= SpawnPool.DLC and SpawnPool[new_value] < SpawnPool.DLC):
+            if self.pool and (self.pool < SpawnPool.DLC and SpawnPool[new_value] >= SpawnPool.DLC):
                 self.ShowPackageLoadingHelp()
             self.pool = SpawnPool[new_value]
-        elif option == self.customSpawnSlider:
-            self.customSpawnPercentage = new_value
     
-    packageLoadingHelpSeen : bool = False
+    packageLoadingHelpSeen: bool = False
     def ShowPackageLoadingHelp(self):
         if self.packageLoadingHelpSeen:
             return
+        self.packageLoadingHelpSeen = True
         TrainingBox(
             Title="Restart Required",
             Message="A game relaunch is required for these changes to take effect.\n\n" \
@@ -274,20 +326,21 @@ class AmbientSpawns(ModMenu.SDKMod):
             MinDuration=0.2
         ).Show()
     
+    #@ModMenu.Hook("WillowGame.WillowPlayerPawnDataManager.LoadPlayerPawnDataAsync")
     @ModMenu.Hook("WillowGame.FrontendGFxMovie.Start")
     def MainMenu(self, caller: unrealsdk.UObject, function: unrealsdk.UFunction, params: unrealsdk.FStruct) -> bool:
-        """
-        The hooked function gets called when the menumap loads, but we need our SaveEnabledState
-            set to LoadWithSettings to ensure it hits this on the initial launch!
+        """ The hooked function gets called when the menumap loads, but we need our SaveEnabledState
+         set to LoadWithSettings to ensure it hits this on the initial launch!
         """
         if unrealsdk.GetEngine().GetCurrentWorldInfo().GetStreamingPersistentMapName() != "menumap":
             return True
-
+        
         if self.megaMixActive or self.pool >= SpawnPool.DLC:
-            Log(f"[{__name__}] LOADING ALL REQUIRED PACKAGES")
+            Log(f"[{__name__}] Loading ALL REQUIRED PACKAGES")
             # Load all enemies from all DLCs
             for deeellcee in level_packages.combat_packages_by_DLC:
                 level_packages.LoadLevelSpawnObjects(deeellcee)
+            custom_spawns.CacheMegaMixPools()
         return True
     
     @ModMenu.Hook("WillowGame.WillowPlayerController.WillowClientShowLoadingMovie")
@@ -299,6 +352,10 @@ class AmbientSpawns(ModMenu.SDKMod):
             unrealsdk.RemoveHook("WillowGame.WillowPlayerController.PlayerTick", f"{self.Name}.PlayerTick")
             self.EndSpawning()
             self.currentSpawnList = []
+            self.mapDenInfos = []
+            self.mapDens = []
+            self.mapNormalSpawns = []
+            self.mapCustomSpawns = []
         # For some reason this function is called after loading in too so we need to flag that
         self.justLoadedIn = False
         return True
@@ -308,9 +365,8 @@ class AmbientSpawns(ModMenu.SDKMod):
         """ The hooked function gets called when we load any map """
         self.justLoadedIn = True
         PC = unrealsdk.GetEngine().GamePlayers[0].Actor
-
-        if not PC.IsPrimaryPlayer():
-            Log(f"[{__name__}] Not primary player so no ambient spawn triggers.")
+        if not PC.IsPrimaryPlayer() or int(unrealsdk.GetEngine().GetCurrentWorldInfo().NetMode) == 3:
+            Log(f"[{__name__}] Either not primary player or a client, so no ambient spawn triggers.")
             return
         
         popMaster = PC.GetWillowGlobals().GetPopulationMaster()
@@ -319,19 +375,19 @@ class AmbientSpawns(ModMenu.SDKMod):
         if self.mapName in BLACKLIST_MAPS:
             Log(f"[{__name__}] {self.mapName} is a blacklisted map. No ambient spawns.")
             unrealsdk.RemoveHook("WillowGame.WillowPlayerController.PlayerTick", f"{self.Name}.PlayerTick")
-            if popMaster and self.increaseSpawnCap and self.initialMaxActorCost:
+            if popMaster and self.spawnCapSwitch.CurrentValue and self.initialMaxActorCost:
                 popMaster.MaxActorCost = self.initialMaxActorCost
                 self.initialMaxActorCost = None
             return True
         
-        if popMaster and self.increaseSpawnCap and not self.initialMaxActorCost:
+        if popMaster and self.spawnCapSwitch.CurrentValue and not self.initialMaxActorCost:
             # Increase the potential enemies at once
             self.initialMaxActorCost = popMaster.MaxActorCost
             popMaster.MaxActorCost = popMaster.MaxActorCost * 3
         
         #Log("Generating Custom Spawns for this map...")
         self.SetupDensAndCustoms(self.mapName, self.currentDLC)
-
+        #Log("Done! Resetting timer.")
         self.lastTime = caller.WorldInfo.TimeSeconds
         self.timeForNextSpawn = self.GetNewDuration()
         
@@ -358,16 +414,15 @@ class AmbientSpawns(ModMenu.SDKMod):
         return True
     
 
-    def SetupDensAndCustoms(self, mapName:str, biome:DLC):
+    def SetupDensAndCustoms(self, mapName: str, biome: DLC):
         """
         Creates the available den list for the current map, and filters out custom spawn list to those
          available in the loaded map too.
+        I am identifying dens by their ObjectInternalInteger and store:
+         The CustomSpawn for the den's own PopDef to use as a default.
+         All matching CustomSpawns for the current pool setting.
+         Matching CustomSpawns specifically that can spawn in view, for our special case.
         """
-        self.heliosActor = None
-        for x in unrealsdk.FindAll("InterpActor"):
-            if x.ReplicatedMesh and x.ReplicatedMesh.Name == "MoonBase02":
-                self.heliosActor = x
-                break
         
         allDens = unrealsdk.FindAll("PopulationOpportunityDen")
         #self.spawns = unrealsdk.FindAll("WillowPopulationPoint")
@@ -375,17 +430,15 @@ class AmbientSpawns(ModMenu.SDKMod):
                         x.Location and x.SpawnPoints and x.SpawnData and (not x.bIsCriticalActor)
                         and (x.GetAllegiance() and x.GetAllegiance().Name not in BLACKLIST_ALLEGIANCES)
                         and (x.SpawnData.PopulationDefName not in BLACKLIST_POPDEFS)
-                        and any(y for y in x.SpawnPoints)   # and y.PointDef - No because threshers have no PointDef
+                        and any(y for y in x.SpawnPoints)
                         ]
         
         if self.pool >= SpawnPool.LEVEL:
             uniquePopDefs = {x.PopulationDef for x in self.mapDens if x.PopulationDef}    # Use a set so it doesn't do duplicates
-            #Log(uniquePopDefs)
             self.mapNormalSpawns = [custom_spawns.CustomSpawnFromPopDef(x) for x in uniquePopDefs]
             for x in reversed(self.mapNormalSpawns):
                 if not x:
                     self.mapNormalSpawns.remove(x)
-            #Log(self.mapNormalSpawns)
                 
             self.mapCustomSpawns = []
             if self.pool == SpawnPool.DLC and biome:
@@ -394,27 +447,31 @@ class AmbientSpawns(ModMenu.SDKMod):
                 for dlcCustomSpawns in custom_spawns.customList.values():
                     self.mapCustomSpawns = self.mapCustomSpawns + [x for x in dlcCustomSpawns if x.LoadObjects(mapName.lower())]
         
-            self.normalSpawnByDen = {}
-            self.customSpawnByDen = {}
-            if len(self.mapDens) == 0:
-                return
-            for den in self.mapDens:
-                den.SpawnRadius = den.SpawnRadius * 1.5
-                
-                # Store all CustomSpawns that this den supports
-                self.normalSpawnByDen[den.ObjectInternalInteger] = []
-                denList = self.normalSpawnByDen[den.ObjectInternalInteger]
-                for customSpawn in self.mapNormalSpawns:
-                    if customSpawn.DenSupportsSpawn(den):
-                        denList.append(customSpawn)
-                
-                self.customSpawnByDen[den.ObjectInternalInteger] = []
-                denList = self.customSpawnByDen[den.ObjectInternalInteger]
-                for customSpawn in self.mapCustomSpawns:
-                    if customSpawn.DenSupportsSpawn(den):
-                        denList.append(customSpawn)
+        self.mapDenInfos: List[DenSpawnInfo] = []
+        if len(self.mapDens) == 0:
+            return
+        for den in self.mapDens:
+            den.SpawnRadius = den.SpawnRadius * 1.5
+            denInfo = DenSpawnInfo()
+            denInfo.denObject = den
+            self.mapDenInfos.append(denInfo)
+            
+            # Store all blank spawn points for our later FOV checks
+            denInfo.blankPoints = [spawnPoint for spawnPoint in den.SpawnPoints if spawnPoint and not spawnPoint.PointDef]
+            
+            # Store all CustomSpawns that this den supports
+            denInfo.baseSpawn = custom_spawns.CustomSpawnFromPopDef(den.PopulationDef)
+            
+            for customSpawn in self.mapNormalSpawns:
+                if customSpawn.DenSupportsSpawn(den):
+                    denInfo.levelSpawns.append(customSpawn)
+            
+            for customSpawn in self.mapCustomSpawns:
+                if customSpawn.DenSupportsSpawn(den):
+                    denInfo.customSpawns.append(customSpawn)
+                    
+            denInfo.FindFOVSpawns()
     
-
     def DoTheThing(self):
         # Check player conditions - I'm using the menu checks as a quick catch-all for whatever
         PC = unrealsdk.GetEngine().GamePlayers[0].Actor
@@ -424,66 +481,73 @@ class AmbientSpawns(ModMenu.SDKMod):
 
         if not (
             PC.CanShowPauseMenu() and
-            (self.canSpawnWhilstInCombat or not Pawn.LastCombatActionTime or Pawn.WorldInfo.TimeSeconds - Pawn.LastCombatActionTime > 5)
+            (self.combatSwitch.CurrentValue or not Pawn.LastCombatActionTime or Pawn.WorldInfo.TimeSeconds - Pawn.LastCombatActionTime > 5)
         ):
             #Log("In combat or summin")
+            self.timeForNextSpawn = self.timeForNextSpawn + 10
             return
         
         # Find dens close to the player
         #Log("It's spawn time baybeeeee")
-        validDens = []
-        validWeights = []
-        for den in self.mapDens:
-            #Log(f"Distance check {den.SpawnData.PopulationDefName} {den.PathName(den)}")
+        validDens: List[DenSpawnInfo] = []
+        validWeights: List[float] = []
+        for denInfo in self.mapDenInfos:
+            den = denInfo.denObject
             distance = DistFromPlayer(PC, den.Location)
-            if distance > self.minDistance and distance < self.maxDistance:
-                weight = GetLocationWeight(PC, den, all(not x.PointDef for x in den.SpawnPoints if x))
+            if distance > self.distanceMinSlider.CurrentValue and distance < self.distanceMaxSlider.CurrentValue:
+                weight = GetLocationWeight(PC, den, denInfo.needsFOVCheck)
                 if weight > 0:
-                    validDens.append(den)
+                    validDens.append(denInfo)
                     validWeights.append(weight)
         
         # Spawn some stuff
         if validDens:
             chosenDens = random.choices(validDens, validWeights, k=1)
-            for den in chosenDens:
-                self.GenerateSpawnListFromDen(PC, den)
+            for denInfo in chosenDens:
+                self.GenerateSpawnListFromDen(PC, denInfo)
                 
-            if self.currentSpawnList and len(self.currentSpawnList) > 0:
+            if self.currentSpawnList:
                 self.StartSpawning()
         
         self.timeForNextSpawn = self.GetNewDuration()
     
-    def GenerateSpawnListFromDen(self, PC, den) -> List[Tuple[object, object, float]]:
+    def GenerateSpawnListFromDen(self, PC, denInfo: DenSpawnInfo) -> List[Tuple[object, object, float]]:
+        den = denInfo.denObject
         gameStage = self.GetGameStage(PC, den)
-        denID = den.ObjectInternalInteger
-        #Log("Den " + str(denID))
         
-        if self.pool > SpawnPool.DEN or not self.customSpawnByDen[denID]:
+        if self.pool > SpawnPool.DEN:
+            # Generate the currentSpawnList from either the level spawns or custom spawns for this den.
+            self.currentSpawnList: List[(object, object)] = []
+            
             validPoints = []
             for spawnPoint in den.SpawnPoints:
-                if spawnPoint:
-                    if spawnPoint.Location and GetLocationWeight(PC, spawnPoint, not spawnPoint.PointDef) > 0:
+                if spawnPoint and spawnPoint.Location:
+                    if GetLocationWeight(PC, spawnPoint, not spawnPoint.PointDef) > 0:
                         validPoints.append(spawnPoint)
             
-            exclusiveValidPoints = [*validPoints]
-            # Generate the currentSpawnList using either a CustomSpawn or den factory.
-            self.currentSpawnList: List[(object, object)] = []
-            if len(self.customSpawnByDen[denID])>0 and random.randint(0,99)<self.customSpawnPercentage:
-                # Pick a random CustomSpawn from this den's valid CustomSpawns
-                validCustomSpawns = self.customSpawnByDen[denID]
+            validCustomSpawns = []
+            if len(validPoints) > 0:
+                if len(denInfo.customSpawns) > 0 and random.randint(0, 99) < self.customSpawnSlider.CurrentValue:
+                    validCustomSpawns = denInfo.customSpawns
+                else:
+                    validCustomSpawns = denInfo.levelSpawns
             else:
-                validCustomSpawns = self.normalSpawnByDen[denID]
+                # If we have no valid FOV points then we might still have blank spawns we can use in view
+                if len(denInfo.fovCustomSpawns) > 0:
+                    #Log("Using BLANK points spawn!")
+                    validPoints = [*denInfo.blankPoints]
+                    validCustomSpawns = denInfo.fovCustomSpawns
                 
             if len(validCustomSpawns) > 0:
                 #Log([x.name for x in validCustomSpawns])
                 customSpawnWeights = [custom_spawns.BadassTagWeights[x.tag] for x in validCustomSpawns]
                 #Log(customSpawnWeights)
-                customSpawn = random.choices(validCustomSpawns, customSpawnWeights)[0]
+                customSpawn: custom_spawns.CustomSpawn = random.choices(validCustomSpawns, customSpawnWeights)[0]
                 #Log(f"Chosen spawn {customSpawn.name}")
                 
                 if customSpawn:
-                    exclusiveValidPoints = []
-                    for (factory, spawnPointDef, delay) in customSpawn.GetNewFactoryList(den, gameStage):
+                    exclusiveValidPoints = []   # Try to pick a unique spawn point until they've all been used
+                    for (factory, spawnPointDef, delay) in customSpawn.GetNewFactoryList(den, gameStage, megaMix=self.megaMixActive):
                         if not spawnPointDef:
                             if len(exclusiveValidPoints) == 0:
                                 exclusiveValidPoints = [*validPoints]
@@ -492,36 +556,28 @@ class AmbientSpawns(ModMenu.SDKMod):
                             self.currentSpawnList.append((factory, chosenSpawnPoint, delay))
                         else:
                             # Make sure we're choosing only spawnPoints that match this custom def, if defined
-                            customValidSpawns = [x for x in validPoints
+                            customValidPoints = [x for x in validPoints
                                 if ((not x.PointDef) and spawnPointDef == "None")
                                 or (x.PointDef.Name == customSpawn.spawnPointDef)
                             ]
-                            if len(exclusiveValidPoints) == 0:
-                                exclusiveValidPoints = [*customValidSpawns]
+                            if len(exclusiveValidPoints) == 0:  # Assuming all spawns in a CustomSpawn can use the same PointDefs!
+                                exclusiveValidPoints = [*customValidPoints]
                             if len(exclusiveValidPoints) > 0:
-                                # Try to pick a unique spawn point until they've all been used
                                 chosenSpawnPoint = random.choice(exclusiveValidPoints)
                                 exclusiveValidPoints.remove(chosenSpawnPoint)
                                 self.currentSpawnList.append((factory, chosenSpawnPoint, delay))
                             else:
                                 # Oh no we can't do all CustomSpawns from this den (player must be looking at all None spawns we can use)
-                                self.currentSpawnList = None
-                                #Log(f"Oh no can't actually spawn {customSpawn.name}, you must be looking at a blank point!")
-                                break
+                                #Log(f"Oh no can't actually find a spawn point {spawnPointDef} for {customSpawn.name}, you must be looking at a blank point!")
+                                continue
+                    if self.currentSpawnList:
+                        ShowChatMessage(self.Name, customSpawn.name)
                 
-            
-        if not self.currentSpawnList and len(exclusiveValidPoints) > 0:
-            self.currentSpawnList: List[(object, object)] = []
-            numSpawns = random.randint(2,5)
-            for _ in range(numSpawns):
-                factory = den.PopulationDef.GetRandomFactory(den, gameStage, 1)
-                if len(exclusiveValidPoints) == 0:
-                    exclusiveValidPoints = [*validPoints]
-                chosenSpawnPoint = random.choice(exclusiveValidPoints)
-                self.currentSpawnList.append((factory, chosenSpawnPoint, 0.2))
-                exclusiveValidPoints.remove(chosenSpawnPoint)
-                if factory.PawnBalanceDefinition and factory.PawnBalanceDefinition.Champion:
-                    break
+        if len(self.currentSpawnList) == 0 and denInfo.baseSpawn:
+            # Default to this den's usual spawn
+            ShowChatMessage(self.Name, denInfo.baseSpawn.name)
+            for (factory, spawnPointDef, delay) in denInfo.baseSpawn.GetNewFactoryList(den, gameStage, megaMix=self.megaMixActive):
+                self.currentSpawnList.append((factory, random.choice([point for point in den.SpawnPoints if point]), delay))
 
         self.currentSpawnDen = den
         return self.currentSpawnList
@@ -538,7 +594,6 @@ class AmbientSpawns(ModMenu.SDKMod):
         #Log("-----Spawning-----")
     
     def DoNextSpawn(self):
-        #Log(str(len(self.currentSpawnList)) + " spawns left")
         (factory, spawn, delay) = self.currentSpawnList.pop(0)
         
         if len(self.currentSpawnList) == 0:
@@ -560,7 +615,6 @@ class AmbientSpawns(ModMenu.SDKMod):
         
         if spawn.StretchyActor:
             # Fix up the Helios spawn anim and other orbital ones
-            # Some spawns play the giant muzzle flash instead IDK why...
             loc = spawn.StretchyActor.Location
             rot = spawn.StretchyActor.Rotation
         else:
@@ -570,19 +624,20 @@ class AmbientSpawns(ModMenu.SDKMod):
         rotTuple = (rot.Pitch, rot.Yaw, rot.Roll)
         
         # This function ensures that the spawns are destroyed on map change
-        spawnedPawn = popMaster.SpawnActorFromOpportunity(factory,
-                                            den,
-                                            locTuple,rotTuple,
-                                            gameStage,1,
-                                            0,0,    # Setting oppIndex from GetOpportunityIndex crashes sometimes - bullymongs
-                                            False,False
-                                            )
+        spawnedPawn = popMaster.SpawnActorFromOpportunity(
+            factory,
+            den,
+            locTuple, rotTuple,
+            gameStage, 1,
+            0, 0,    # Setting oppIndex from GetOpportunityIndex crashes sometimes - bullymongs
+            False, False
+        )
 
         # I hope you're not here looking for answers...
         if spawnedPawn:
-            # Play the SpecialMove spawn animation
-            spawn.ActorSpawned(spawnedPawn)
-            #spawnedPawn.MySpawnPoint = spawn
+            spawn.ActorSpawned(spawnedPawn)     # Play the SpecialMove spawn animation
+            if spawn:
+                spawnedPawn.MySpawnPoint = spawn    # Orbital drop ground shake and spawn anims
             
             # If it's the Infected Pods then rotate them to try and stop them overlapping in the same point
             if factory.PathName(factory).startswith("GD_Anemone_InfectedPodTendril.Population.PopDef_InfectedPodTendril"):
@@ -602,6 +657,7 @@ class AmbientSpawns(ModMenu.SDKMod):
             AIComp = mind.GetAIComponent()
             AIComp.AddTarget(PC.pawn)
             AIComp.NotifyAttackedBy(PC.pawn)
+            mind.GetAIDefinition().TargetSearchRadius = self.distanceMaxSlider.CurrentValue    # This may change it for ALL of this definition too...
             # I would like to get the full AI node tree in the AIDef running like regular spawns,
             #  so they Patrol, etc, but can't get that working.
             #Log(mind.AIClass.AIDef.NodeList)
@@ -610,13 +666,13 @@ class AmbientSpawns(ModMenu.SDKMod):
                 mind.AIClass.CombatMusicTargetingThreat = preClassThreat
             
             # Also get nearby patrolling enemies from this den to attack
-            if self.provokeDens:
+            if self.provokeDenSwitch.CurrentValue:
                 den.TriggerProvokedEvents()
                 denAI = den.GetAIComponent()
                 denAI.AddTarget(PC.pawn)
                 denAI.NotifyAttackedBy(PC.pawn)
                         
-            #spawnedPawn.PlayTaunt()    # Sometimes crashes because AKEvents not loaded?
+            spawnedPawn.PlayTaunt()
     
     def EndSpawning(self):
         self.isSpawning = False
@@ -627,10 +683,10 @@ class AmbientSpawns(ModMenu.SDKMod):
         duration = self.averageTimeForNextSpawn + randy
         if duration < MIN_TIME_DURATION:
             duration = MIN_TIME_DURATION
-        #ShowChatMessage(self.Name, "Next duration " + str(duration))
+        ShowChatMessage(self.Name, "Next duration " + str(duration))
         return duration
 
-    def GetGameStage(self, PC, den=None):
+    def GetGameStage(self, PC, den=None) -> int:
         stage = 0
         if den:
             out = den.GetOpportunityGameStage()
@@ -651,13 +707,12 @@ class AmbientSpawns(ModMenu.SDKMod):
         return stage
 
 
-def GetLocationWeight(PC, actor, testFOV:bool = False) -> int:
-    """ Returns a weight to choose this spawn point based on player view angle, or 0 if invalid """
+def GetLocationWeight(PC, actor, testFOV: bool = False) -> float:
+    """ Returns a weight to choose this spawn point based on player view angle, 0 if invalid, -1 if failed FOV check """
     viewYaw = PC.CalcViewRotation.Yaw * math.pi / 32768
     viewVector = [math.cos(viewYaw), math.sin(viewYaw)]
     # Comparing Yaw only so only care about X,Y plane
     if not actor.Location:
-        #Log(f"{str(actor)} has no Location!")
         return 0
     location = actor.Location
     normLocation = Normalise([location.X - PC.Pawn.Location.X, location.Y - PC.Pawn.Location.Y])
@@ -670,10 +725,10 @@ def GetLocationWeight(PC, actor, testFOV:bool = False) -> int:
         #  Also we don't just spawn all the enemies at once anymore,
         #   so the delay means you might turn and see this anyway :/
         if dot >= 0:
-            return 0
+            return -1
     
     # Bias towards points in front of the player
-    return ClampRange(0.2, 1.2, dot + 1)#**2
+    return ClampRange(0.2, 1.2, dot + 1)
     
 
 def DistFromPlayer(PC, location) -> float:
@@ -685,8 +740,8 @@ def DistFromPlayer(PC, location) -> float:
     )
     
 def Normalise(vec):
-    magnitude = math.sqrt(sum(x*x for x in vec))
-    return [x/magnitude for x in vec]
+    magnitude = math.sqrt(sum(x * x for x in vec))
+    return [x / magnitude for x in vec]
 
 def ClampRange(min, max, x):
     if x < min: return min
@@ -696,18 +751,18 @@ def ClampRange(min, max, x):
 
 instance = AmbientSpawns()
 
-# # Lets us reload the mod in-game using the console command pyexec
-# if __name__ == "__main__":
-#     unrealsdk.Log(f"[{instance.Name}] Manually loaded")
-#     for mod in ModMenu.Mods:
-#         if mod.Name == instance.Name:
-#             if mod.IsEnabled:
-#                 mod.Disable()
-#             ModMenu.Mods.remove(mod)
-#             unrealsdk.Log(f"[{instance.Name}] Removed last instance")
+# Lets us reload the mod in-game using the console command pyexec
+if __name__ == "__main__":
+    unrealsdk.Log(f"[{instance.Name}] Manually loaded")
+    for mod in ModMenu.Mods:
+        if mod.Name == instance.Name:
+            if mod.IsEnabled:
+                mod.Disable()
+            ModMenu.Mods.remove(mod)
+            unrealsdk.Log(f"[{instance.Name}] Removed last instance")
 
-#             # Fixes inspect.getfile()
-#             instance.__class__.__module__ = mod.__class__.__module__
-#             break
+            # Fixes inspect.getfile()
+            instance.__class__.__module__ = mod.__class__.__module__
+            break
 
 ModMenu.RegisterMod(instance)

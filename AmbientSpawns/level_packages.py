@@ -75,7 +75,6 @@ DLC_outer_prefixes = {
         DLC.ShockDrop: []
     }
 }[CurrentGame]
-# For DLC pools on level load, for each popdef loaded in a CustomSPawn, check the outer package in that^^^
 
 def Get_DLC_From_Object(object) -> str:
     if not object:
@@ -83,8 +82,6 @@ def Get_DLC_From_Object(object) -> str:
     
     outer = object.Outer
     path = object.PathName(object)
-    Log(outer)
-    Log(path)
     for DLC in DLC_outer_prefixes:
         if any(path.startsWith(prefix) for prefix in DLC):
             return DLC
@@ -222,7 +219,7 @@ combat_packages_by_DLC = {
         "Fridge_Dynamic.upk",               # Laney
         "Frost_Dynamic.upk",                # Mr Mercy, Bad Maw, Nomad Badass
         "Grass_Lynchwood_Dynamic.upk",      # Marshals, Deputy, Sheriff
-        #"HyperionCity_Dynamic.upk",         # ProbeMix_Badass, Foreman
+        # "HyperionCity_Dynamic.upk",         # ProbeMix_Badass, Foreman
         "SouthpawFactory_Dynamic.upk",      # Assassins
         "TundraTrain_Dynamic.upk",          # Wilhelm
 
@@ -238,7 +235,7 @@ combat_packages_by_DLC = {
         # "DamTop_Combat.upk",
         "FinalBossAscent_Combat.upk",       # HyperionInfiltrator
         # "Fridge_Combat.upk",
-        "Fyrestone_Combat.upk",
+        "Fyrestone_Combat.upk",             # Loader Militar Mix
         "Grass_Cliffs_Combat.upk",          # HyperionSoldier
         # "Grass_Combat.upk",
         "Grass_Lynchwood_Combat.upk",       # Miners, Skag Riders
@@ -248,7 +245,7 @@ combat_packages_by_DLC = {
         "PandoraPark_Combat.upk",           # Stalkers
         # "Sanctuary_Hole_Combat.upk",
         # "SouthernShelf_Combat.upk",
-        # "Stockade_Combat.upk",
+        "Stockade_Combat.upk",              # Junk Loader
         "ThresherRaid_P.upk",               # Terry
         "TundraExpress_Combat.upk",         # Prospector
         # "VOGChamber_Combat.upk",
@@ -262,12 +259,12 @@ combat_packages_by_DLC = {
         #"Iris_DL3_Dynamic.upk",            # Forge Loaders (nope need defs from _P)
         "Iris_DL1_Battle.upk",              # Arena Gangs
         #"Iris_Hub2_Combat.upk",            # Monster Truck
-        #"Iris_DL2_Combat.upk",
+        "Iris_DL2_Combat.upk",              # Badass Biker Psycho
         #"Iris_DL2_Interior_Combat.upk",
         #"Iris_DL1_TAS_Combat.upk"
     ],
     DLC.Scarlett: [
-        #"Orchid_Refinery_Combat.upk",
+        "Orchid_Refinery_Combat.upk",       # ARR Loader
         "Orchid_OasisTown_Combat.upk",      # NoBeard, Pirate Cursed
         "Orchid_Caves_Combat.upk",          # Blue Crystalisks, Pirates
         "Orchid_Spire_P.upk",               # Big Pirates, Mr Bubbles
@@ -277,10 +274,11 @@ combat_packages_by_DLC = {
         #"Orchid_WormBelly_Dynamic.upk",     # Rakk Hive, Worms
     ],
     DLC.Hammerlock: [
-        #"Sage_Cliffs_Combat.upk",  # Breaks Elite Savages - might need _P too, whatevs
-        "Sage_PowerStation_Combat.upk"
+        #"Sage_Cliffs_Combat.upk",       # Elite Savages - but broken need something else, whatevs
+        "Sage_PowerStation_P.upk",
+        "Sage_PowerStation_Combat.upk",
         #"Sage_RockForest_Combat.upk",
-        "Sage_Underground_Combat.upk",
+        #"Sage_Underground_Combat.upk",
     ],
     DLC.DragonKeep: [
         "TempleSlaughter_P.upk",        # Materials for knights
@@ -288,26 +286,31 @@ combat_packages_by_DLC = {
         "Dead_Forest_Combat.upk",
         #"Docks_Combat.upk",
         "Dungeon_Combat.upk",
+        #"Dungeon_Mission.upk",          # Dead Brothers
         #"DungeonRaid_Combat.upk",
         "Mines_Combat.upk",
+        "Mines_Dynamic.upk",            # Flying Golem
+        "Mines_Mission.upk",            # Maxibillion, Broomstick
         #"CastleExterior_Combat.upk",
         #"CastleKeep_Combat.upk",
-        "Dark_Forest_Combat.upk"
+        #"Dark_Forest_P.upk",            # Materials for treants
+        #"Dark_Forest_Combat.upk"
     ],
     DLC.Headhunters: [
-        "Xmas_Combat.upk",
+        "Xmas_Combat.upk",              # Snow Bandits
+        "Xmas_Dynamic.upk",             # Snow Psychos
         "Hunger_Boss.upk",              # Tributes
-        "Hunger_Dynamic.upk",
+        "Hunger_Dynamic.upk",           # Incinerator Tribute
         "Hunger_Mission_1.upk",         # ButcherBoss1-3, RatChef, Tributes
         "Hunger_Mission_2.upk",         # Engineer Tributes
-        #"Hunger_Mission_3.upk",        # ButcherBoss2 and 3
-        "Pumpkin_Patch_Combat.upk",
-        "Distillery_Combat.upk",
-        "Easter_Combat.upk"
+        "Hunger_Mission_3.upk",         # ButcherBoss2-3, ButcherMidget
+        #"Pumpkin_Patch_Combat.upk",
+        "Distillery_Dynamic.upk",       # Special Threshers
+        "Distillery_Mission.upk",       # Hodunks and Zafords
+        "Easter_Combat.upk"             # Crabworms, Tropical Varkids
     ],
     DLC.FFS: [
         "BackBurner_P.upk",             # Infected materials
-        #"BackBurner_LD.upk",            # Infected materials
         "BackBurner_Mission_Main.upk",  # Infected materials
         "ResearchCenter_MissionMain.upk",
         "ResearchCenter_MissionSide.upk",
@@ -330,11 +333,10 @@ loaded_DLCs = []
 def GetCurrentDLC(PC) -> str:
     map_name = PC.WorldInfo.GetStreamingPersistentMapName()
     for DLC in levels_by_DLC:
-        #Log(DLC.name)
         if map_name.lower() in [x.lower() for x in levels_by_DLC[DLC]]:
             #Log(f"{map_name} found in {DLC.name}")
             return DLC
-    Log(f"{map_name} not found!")
+    #Log(f"{map_name} not found!")
     return None
 
 def KeepAliveAllClass(class_name: str):
@@ -348,11 +350,10 @@ def LoadLevelSpawnObjects(DLC: str):
         return
     
     for package_name in combat_packages_by_DLC[DLC]:
-        # We can't just KeepAlive the entire package if we are loading levels, because Dens will be loaded and used!
         unrealsdk.LoadPackage(package_name)
         KeepAliveAllClass("WillowPopulationDefinition")
         KeepAliveAllClass("PopulationFactoryBalancedAIPawn")
-            
+
         # We will also need to only do this on the MENUMAP because otherwise is crashes on level change
         # Due to garbage collection
         # # AK
@@ -398,10 +399,6 @@ def LoadLevelSpawnObjects(DLC: str):
         # # GD_Impacts
         # KeepAliveAllClass("WillowExplosionImpactDefinition")
         # KeepAliveAllClass("WillowImpactDefinition")
-        
-        # # What we DEFINITELY need
-        # KeepAliveAllClass("PopulationFactoryBalancedAIPawn")
-        # KeepAliveAllClass("WillowPopulationDefinition")
 
     loaded_DLCs.append(DLC)
     
