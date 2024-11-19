@@ -208,13 +208,13 @@ class AmbientSpawns(ModMenu.SDKMod):
     pool: SpawnPool = None
     currentDLC: DLC = DLC.BL2
 
-    Keybinds = [ModMenu.Keybind("Spawn Now", "P")]
+    # Keybinds = [ModMenu.Keybind("Spawn Now", "P")]
 
-    def GameInputPressed(self, bind: ModMenu.Keybind, event: ModMenu.InputEvent) -> None:
-        if event != ModMenu.InputEvent.Pressed:
-            return
-        self.EndSpawning()
-        self.DoTheThing()
+    # def GameInputPressed(self, bind: ModMenu.Keybind, event: ModMenu.InputEvent) -> None:
+    #     if event != ModMenu.InputEvent.Pressed:
+    #         return
+    #     self.EndSpawning()
+    #     self.DoTheThing()
 
     def __init__(self) -> None:
         super().__init__()
@@ -570,12 +570,12 @@ class AmbientSpawns(ModMenu.SDKMod):
                                 # Oh no we can't do all CustomSpawns from this den (player must be looking at all None spawns we can use)
                                 #Log(f"Oh no can't actually find a spawn point {spawnPointDef} for {customSpawn.name}, you must be looking at a blank point!")
                                 continue
-                    if self.currentSpawnList:
-                        ShowChatMessage(self.Name, customSpawn.name)
+                    # if self.currentSpawnList:
+                    #     ShowChatMessage(self.Name, customSpawn.name)
                 
         if len(self.currentSpawnList) == 0 and denInfo.baseSpawn:
             # Default to this den's usual spawn
-            ShowChatMessage(self.Name, denInfo.baseSpawn.name)
+            #ShowChatMessage(self.Name, denInfo.baseSpawn.name)
             for (factory, spawnPointDef, delay) in denInfo.baseSpawn.GetNewFactoryList(den, gameStage, megaMix=self.megaMixActive):
                 self.currentSpawnList.append((factory, random.choice([point for point in den.SpawnPoints if point]), delay))
 
@@ -683,7 +683,7 @@ class AmbientSpawns(ModMenu.SDKMod):
         duration = self.averageTimeForNextSpawn + randy
         if duration < MIN_TIME_DURATION:
             duration = MIN_TIME_DURATION
-        ShowChatMessage(self.Name, "Next duration " + str(duration))
+        #ShowChatMessage(self.Name, "Next duration " + str(duration))
         return duration
 
     def GetGameStage(self, PC, den=None) -> int:
