@@ -1,4 +1,6 @@
 # Changelog
+## v1.1.0
+- Added options for which vehicle type to spawn, for each vehicle family.
 
 ## v1.0.1
 - Fixed TPS default family and options spinner.
