@@ -1,8 +1,8 @@
 import enum
-import time
 import unrealsdk
 from unrealsdk import Log
 from Mods import ModMenu
+
 
 class DLC(enum.IntEnum):
     BL2 = enum.auto()
@@ -15,10 +15,11 @@ class DLC(enum.IntEnum):
     Digistruct = enum.auto()
     TPS = enum.auto()
     Claptastic = enum.auto()
-    ShockDrop = enum.auto()
+    Holodome = enum.auto()
 
-CurrentGame = ModMenu.Game.GetCurrent()
-BaseDLC = DLC.TPS if CurrentGame is ModMenu.Game.TPS else DLC.BL2
+
+CURRENT_GAME = ModMenu.Game.GetCurrent()
+BaseDLC = DLC.TPS if CURRENT_GAME is ModMenu.Game.TPS else DLC.BL2
 
 DLC_outer_prefixes = {
     ModMenu.Game.BL2: {
@@ -71,10 +72,17 @@ DLC_outer_prefixes = {
     },
     ModMenu.Game.TPS: {
         #DLC.TPS: ["GD_Population"],
-        DLC.Claptastic: [],
-        DLC.ShockDrop: []
+        DLC.Claptastic: [
+            "GD_Ma_",
+            "GD_Marigold",
+        ],
+        DLC.Holodome: [
+            "GD_EridianSlaughter",
+        ]
     }
-}[CurrentGame]
+}[CURRENT_GAME]
+"""Lists of outer prefixes to get the DLC that an object is from using those."""
+
 
 def Get_DLC_From_Object(object) -> str:
     if not object:
@@ -87,6 +95,7 @@ def Get_DLC_From_Object(object) -> str:
             return DLC
     # Default to base game since there are some headhunters in GD_Population_*
     return BaseDLC
+
 
 levels_by_DLC = {
     ModMenu.Game.BL2: {
@@ -190,161 +199,251 @@ levels_by_DLC = {
     },
     ModMenu.Game.TPS: {
         DLC.TPS: [
-            
+            "MoonSlaughter_P",
+            "Spaceport_P",
+            "ComFacility_P",
+            "InnerCore_P",
+            "LaserBoss_P",
+            "MoonShotIntro_P",
+            "CentralTerminal_P",
+            "JacksOffice_P",
+            "Laser_P",
+            "Meriff_P",
+            "Digsite_Rk5arena_P",
+            "Outlands_P2",
+            "Outlands_P",
+            "Wreck_P",
+            "Deadsurface_P",
+            "RandDFacility_P",
+            "Moonsurface_P",
+            "StantonsLiver_P",
+            "Sublevel13_P",
+            "DahlFactory_P",
+            "DahlFactory_Boss",
+            "Moon_P",
+            "Access_P",
+            "InnerHull_P",
+            "Digsite_P",
         ],
         DLC.Claptastic: [
-            
+            "Ma_LeftCluster_P",
+            "Ma_RightCluster_P",
+            "Ma_SubBoss_P",
+            "Ma_Deck13_P",
+            "Ma_FinalBoss_P",
+            "Ma_Motherboard_P",
+            "Ma_Nexus_P",
+            "Ma_Subconscious_P",
         ],
-        DLC.ShockDrop: [
-            
+        DLC.Holodome: [
+            "Eridian_Slaughter_P",
         ],
     },
-}[CurrentGame]
+}[CURRENT_GAME]
 
+# I could just load all _P, _Dynamic, and _Combat packages to make sure we get everything.
+# But I don't really want to load the entire game at once, so being selective here.
 combat_packages_by_DLC = {
     DLC.BL2: [
         # Need to load the _P packages first to make sure BodyTags and stuff are found
-        "BanditSlaughter_P.upk",
-        "BanditSlaughter_Combat.upk",
-        "CreatureSlaughter_P.upk",
-        "CreatureSlaughter_Dynamic.upk",
-        "RobotSlaughter_P.upk",
-        "RobotSlaughter_Dynamic.upk",
+        "BanditSlaughter_P",
+        "BanditSlaughter_Combat",
+        "CreatureSlaughter_P",
+        "CreatureSlaughter_Dynamic",
+        "RobotSlaughter_P",
+        "RobotSlaughter_Dynamic",
         
         # Extra non-Combats we need for missing bits i.e. minibosses
-        "Caverns_P.upk",                    # Creepers
-        "Cove_Dynamic.upk",                 # MidgetBadass
-        "Dam_Dynamic.upk",                  # Marauder
-        "Ice_Dynamic.upk",                  # Ice Bullymongs?
-        "Fridge_Dynamic.upk",               # Laney
-        "Frost_Dynamic.upk",                # Mr Mercy, Bad Maw, Nomad Badass
-        "Grass_Lynchwood_Dynamic.upk",      # Marshals, Deputy, Sheriff
-        # "HyperionCity_Dynamic.upk",         # ProbeMix_Badass, Foreman
-        "SouthpawFactory_Dynamic.upk",      # Assassins
-        "TundraTrain_Dynamic.upk",          # Wilhelm
+        "Caverns_P",                    # Creepers
+        "Cove_Dynamic",                 # MidgetBadass
+        "Dam_Dynamic",                  # Marauder
+        "Ice_P"                         # Vehicle textures, bone/horn textures
+        "Ice_Dynamic",                  # Nomad Pyro
+        "Fridge_Dynamic",               # Laney
+        "Frost_Dynamic",                # Mr Mercy, Bad Maw, Nomad Badass
+        #"Grass_Lynchwood_P"             # Cowboy hat texture
+        #"Grass_Lynchwood_Dynamic",      # Marshals, Deputy, Sheriff
+        # "HyperionCity_Dynamic",         # ProbeMix_Badass, Foreman
+        "SouthpawFactory_Dynamic",      # Assassins
+        "TundraTrain_Dynamic",          # Wilhelm
 
-        "Ash_Combat.upk",                   # Rock Bullymongs
-        # "BanditSlaughter_Combat.upk",
-        # "Boss_Cliffs_Combat.upk",
-        "Boss_Cliffs_CombatLoader.upk",     # Loader Bunker Mix
-        # "Boss_Volcano_Combat.upk",
-        # "Boss_Volcano_Combat_Monster.upk",  # Volcanic Rakk
-        # "CraterLake_Combat.upk",
-        # "CreatureSlaughter_Combat.upk",
-        "Dam_Combat.upk",                   # Mad Mike
-        # "DamTop_Combat.upk",
-        "FinalBossAscent_Combat.upk",       # HyperionInfiltrator
-        # "Fridge_Combat.upk",
-        "Fyrestone_Combat.upk",             # Loader Militar Mix
-        "Grass_Cliffs_Combat.upk",          # HyperionSoldier
-        # "Grass_Combat.upk",
-        "Grass_Lynchwood_Combat.upk",       # Miners, Skag Riders
-        "IceCanyon_Combat.upk",             # Flame Bandits
-        # "Interlude_Combat.upk",
-        # "Outwash_Combat.upk",
-        "PandoraPark_Combat.upk",           # Stalkers
-        # "Sanctuary_Hole_Combat.upk",
-        # "SouthernShelf_Combat.upk",
-        "Stockade_Combat.upk",              # Junk Loader
-        "ThresherRaid_P.upk",               # Terry
-        "TundraExpress_Combat.upk",         # Prospector
-        # "VOGChamber_Combat.upk",
+        "Ash_Combat",                   # Rock Bullymongs
+        # "BanditSlaughter_Combat",
+        # "Boss_Cliffs_Combat",
+        "Boss_Cliffs_CombatLoader",     # Loader Bunker Mix
+        # "Boss_Volcano_Combat",
+        # "Boss_Volcano_Combat_Monster",  # Volcanic Rakk
+        # "CraterLake_Combat",
+        # "CreatureSlaughter_Combat",
+        "Dam_Combat",                   # Mad Mike
+        # "DamTop_Combat",
+        "FinalBossAscent_Combat",       # HyperionInfiltrator
+        # "Fridge_Combat",
+        "Fyrestone_Combat",             # Loader Militar Mix
+        "Grass_Cliffs_Combat",          # HyperionSoldier
+        # "Grass_Combat",
+        "Grass_Lynchwood_Combat",       # Miners, Skag Riders
+        "IceCanyon_Combat",             # Flame Bandits
+        # "Interlude_Combat",
+        # "Outwash_Combat",
+        "PandoraPark_Combat",           # Stalkers
+        # "Sanctuary_Hole_Combat",
+        # "SouthernShelf_Combat",
+        "Stockade_Combat",              # Junk Loader
+        "ThresherRaid_P",               # Terry
+        "TundraExpress_Combat",         # Prospector
+        # "VOGChamber_Combat",
         
     ],
     DLC.Torgue: [
-        # "Iris_Hub_P.upk",
-        # "Iris_Hub_Combat.upk",
-        # "Iris_Hub_Dynamic.upk",
-        "Iris_DL3_P.upk",                   # Forge Loaders
-        #"Iris_DL3_Dynamic.upk",            # Forge Loaders (nope need defs from _P)
-        "Iris_DL1_Battle.upk",              # Arena Gangs
-        #"Iris_Hub2_Combat.upk",            # Monster Truck
-        "Iris_DL2_Combat.upk",              # Badass Biker Psycho
-        #"Iris_DL2_Interior_Combat.upk",
-        #"Iris_DL1_TAS_Combat.upk"
+        # "Iris_Hub_Combat",
+        "Iris_DL3_P",                   # Forge Loaders
+        "Iris_DL1_Battle",              # Arena Gangs
+        #"Iris_Hub2_Combat",            # Monster Truck
+        "Iris_DL2_Combat",              # Badass Biker Psycho
+        #"Iris_DL2_Interior_Combat",
+        #"Iris_DL1_TAS_Combat"
     ],
     DLC.Scarlett: [
-        "Orchid_Refinery_Combat.upk",       # ARR Loader
-        "Orchid_OasisTown_Combat.upk",      # NoBeard, Pirate Cursed
-        "Orchid_Caves_Combat.upk",          # Blue Crystalisks, Pirates
-        "Orchid_Spire_P.upk",               # Big Pirates, Mr Bubbles
-        "Orchid_Spire_Dynamic.upk",         # Scarlett Crew
-        "Orchid_ShipGraveyard_Combat.upk",  # Anchorman
-        "Orchid_SaltFlats_Combat.upk"       # Pirate Grenadier
-        #"Orchid_WormBelly_Dynamic.upk",     # Rakk Hive, Worms
+        "Orchid_Refinery_Combat",       # ARR Loader
+        "Orchid_OasisTown_Combat",      # NoBeard, Pirate Cursed
+        "Orchid_Caves_Combat",          # Blue Crystalisks, Pirates
+        "Orchid_Spire_P",               # Big Pirates, Mr Bubbles
+        "Orchid_Spire_Dynamic",         # Scarlett Crew
+        "Orchid_ShipGraveyard_Combat",  # Anchorman
+        "Orchid_SaltFlats_Combat"       # Pirate Grenadier
+        #"Orchid_WormBelly_Dynamic",     # Rakk Hive, Worms
     ],
     DLC.Hammerlock: [
-        #"Sage_Cliffs_Combat.upk",       # Elite Savages - but broken need something else, whatevs
-        "Sage_PowerStation_P.upk",
-        "Sage_PowerStation_Combat.upk",
-        #"Sage_RockForest_Combat.upk",
-        #"Sage_Underground_Combat.upk",
+        #"Sage_Cliffs_Combat",       # Elite Savages - but broken need something else, whatevs
+        "Sage_PowerStation_P",
+        "Sage_PowerStation_Combat",
+        #"Sage_RockForest_Combat",
+        #"Sage_Underground_Combat",
     ],
     DLC.DragonKeep: [
-        "TempleSlaughter_P.upk",        # Materials for knights
-        "TempleSlaughter_Combat.upk",
-        "Dead_Forest_Combat.upk",
-        #"Docks_Combat.upk",
-        "Dungeon_Combat.upk",
-        #"Dungeon_Mission.upk",          # Dead Brothers
-        #"DungeonRaid_Combat.upk",
-        "Mines_Combat.upk",
-        "Mines_Dynamic.upk",            # Flying Golem
-        "Mines_Mission.upk",            # Maxibillion, Broomstick
-        #"CastleExterior_Combat.upk",
-        #"CastleKeep_Combat.upk",
-        #"Dark_Forest_P.upk",            # Materials for treants
-        #"Dark_Forest_Combat.upk"
+        "TempleSlaughter_P",        # Materials for knights
+        "TempleSlaughter_Combat",
+        "Dead_Forest_Combat",
+        #"Docks_Combat",
+        "Dungeon_Combat",
+        #"Dungeon_Mission",          # Dead Brothers
+        #"DungeonRaid_Combat",
+        "Mines_Combat",
+        "Mines_Dynamic",            # Flying Golem
+        "Mines_Mission",            # Maxibillion, Broomstick
+        #"CastleExterior_Combat",
+        #"CastleKeep_Combat",
+        #"Dark_Forest_P",            # Materials for treants
+        #"Dark_Forest_Combat"
     ],
     DLC.Headhunters: [
-        "Xmas_Combat.upk",              # Snow Bandits
-        "Xmas_Dynamic.upk",             # Snow Psychos
-        "Hunger_Boss.upk",              # Tributes
-        "Hunger_Dynamic.upk",           # Incinerator Tribute
-        "Hunger_Mission_1.upk",         # ButcherBoss1-3, RatChef, Tributes
-        "Hunger_Mission_2.upk",         # Engineer Tributes
-        "Hunger_Mission_3.upk",         # ButcherBoss2-3, ButcherMidget
-        #"Pumpkin_Patch_Combat.upk",
-        "Distillery_Dynamic.upk",       # Special Threshers
-        "Distillery_Mission.upk",       # Hodunks and Zafords
-        "Easter_Combat.upk"             # Crabworms, Tropical Varkids
+        "Xmas_Combat",              # Snow Bandits
+        "Xmas_Dynamic",             # Snow Psychos
+        "Hunger_Boss",              # Tributes
+        "Hunger_Dynamic",           # Incinerator Tribute
+        "Hunger_Mission_1",         # ButcherBoss1-3, RatChef, Tributes
+        "Hunger_Mission_2",         # Engineer Tributes
+        "Hunger_Mission_3",         # ButcherBoss2-3, ButcherMidget
+        #"Pumpkin_Patch_Combat",
+        "Distillery_Dynamic",       # Special Threshers
+        "Distillery_Mission",       # Hodunks and Zafords
+        "Easter_Combat"             # Crabworms, Tropical Varkids
     ],
     DLC.FFS: [
-        "BackBurner_P.upk",             # Infected materials
-        "BackBurner_Mission_Main.upk",  # Infected materials
-        "ResearchCenter_MissionMain.upk",
-        "ResearchCenter_MissionSide.upk",
-        "OldDust_Lair.upk",             # Infected Bandits
-        "OldDust_LD.upk",               # Infected Goliath, Curse
-        "OldDust_Mission_Main.upk",
-        "OldDust_Mission_Side.upk",
+        "BackBurner_P",             # Infected materials
+        "BackBurner_Mission_Main",  # Infected materials
+        "ResearchCenter_MissionMain",
+        "ResearchCenter_MissionSide",
+        "OldDust_Lair",             # Infected Bandits
+        "OldDust_LD",               # Infected Goliath, Curse
+        "OldDust_Mission_Main",
+        "OldDust_Mission_Side",
         "Sandworm_Encounters",          # Infected Golem Badass
-        "Sandworm_Mission_Side.upk",
-        "Helios_Mission_Main.upk",
-        "Helios_Mission_Side.upk",
+        "Sandworm_Mission_Side",
+        "Helios_Mission_Main",
+        "Helios_Mission_Side",
     ],
     DLC.Digistruct: [
-        "TestingZone_Combat.upk"
+        "TestingZone_Combat"
+    ],
+    DLC.TPS: [
+        # NOTE Broken Textures:
+        # Moon_Combat/Wreck_Combat breaks wall texture
+        # Moon_SideMissions breaks floor texture
+        
+        # Eridians first to prevent broken Cheru/Opha FX
+        "Eridian_slaughter_P",      # Wormhole generator
+        "Eridian_slaughter_Combat", # Guardians and Eridians but different PopDefs than base game.
+        "11B_Facility_A_Combat",    # Fanatics, Zealots, Guardians
+        "InnerCore_combat00",       # Eridians
+        "InnerCore_OPHATitleCard",  # Opha Superior
+        
+        # Moon_ first to prevent broken wall texture
+        "Moon_Combat",              # Darksiders, Hives, ScavBadassBandit, ScavengerMix_Regular, Oscar
+        #"Moon_SideMissions",        # Badass Hives - but breaks a floor texture, and they can only spawn in the map with this already loaded anyway.
+        "Moonsurface_P",            # Kraggon Eruptor material
+        "Moonsurface_Combat",       # Rock Kraggons, Zillas, Phonic, GrandsonFlamey
+        #"MoonSlaughter_P",
+        #"MoonSlaughter_Combat",     # GroundMix, RegularMix, BadassSpaceman, ScavNomad
+        
+        "Outlands_P",               # Spaceman Assets
+        "Outlands_Combat",          # Ice Kraggons Small, SpitterBadass, CombatSpaceman
+        "Outlands_P2",              # Tork Assets
+        "Outlands_Combat2",         # Scav Jetriders, JetpackMix, WastelandWalker, Blowflys
+        #"Wreck_P",                  # Spaceman Assets
+        #"Wreck_Combat",             # BadassSpaceman, BadassBanditMidget, EliteBandit, Midget, SuicidePsycho
+        "DahlFactory_P"             # Tork Assets
+        "DahlFactory_Dynamic",      # Scav Rider Powersuit, Tork Assets
+        "DahlFactory_Combat",       # ScavengerBandit_Jetpack, Scav Nomad, ScavPsychoMidget
+        "DahlFactory_BossDynamic",  # Scav Powersuit, Bots
+        
+        "CentralTerminal_Dynamic",  # Bob, Dahl
+        "RandDFacility_Dynamic",    # Badass Marine, Stalkers
+        "InnerHull_P",              # Boil and Rat BodyTags
+        "InnerHull_Combat",         # BoilMix, HypRatMix, Dahl, Jetfighters
+        #"InnerHull_Mission",        # Boils, Rats, Lazlo
+        "Laser_Dynamic",            # Power suits
+        
+    ],
+    DLC.Claptastic: [
+        "Ma_LeftCluster_P",         # Bandit and Missile FX
+        "Ma_LeftCluster_Combat",    # Tassitrons
+        "Ma_Subconscious_P",        # VI Clapdog FX
+        "Ma_Subconscious_Game",     # Very Insecure Forces
+        "Ma_SubBoss_Game",          # Everything else
+        "Ma_FinalBoss_Game",        # Shadowtrap Clone, EOS
     ]
 }
 
-loaded_DLCs = []
 
 def GetCurrentDLC(PC) -> str:
     map_name = PC.WorldInfo.GetStreamingPersistentMapName()
     for DLC in levels_by_DLC:
         if map_name.lower() in [x.lower() for x in levels_by_DLC[DLC]]:
-            #Log(f"{map_name} found in {DLC.name}")
             return DLC
-    #Log(f"{map_name} not found!")
     return None
+
+
+kept_alive_objects_by_class_name: dict = {}
 
 def KeepAliveAllClass(class_name: str):
     objects = unrealsdk.FindAll(class_name)
     for object in objects:
         unrealsdk.KeepAlive(object)
+    kept_alive_objects_by_class_name[class_name] = objects
 
-def LoadLevelSpawnObjects(DLC: str):
+
+def UnKeepAliveAllClass(class_name: str):
+    objects = kept_alive_objects_by_class_name.pop(class_name)
+    for object in objects:
+        object.ObjectFlags.A &= ~0x4000     # Remove KeepAlive
+
+
+loaded_DLCs = []
+
+def LoadLevelSpawnObjects(DLC: DLC):
+    global loaded_DLCs
     if DLC in loaded_DLCs:
         #Log(f"DLC {DLC.name} levels are already loaded!")
         return
@@ -353,52 +452,15 @@ def LoadLevelSpawnObjects(DLC: str):
         unrealsdk.LoadPackage(package_name)
         KeepAliveAllClass("WillowPopulationDefinition")
         KeepAliveAllClass("PopulationFactoryBalancedAIPawn")
-
-        # We will also need to only do this on the MENUMAP because otherwise is crashes on level change
-        # Due to garbage collection
-        # # AK
-        # KeepAliveAllClass("AkEvent")
-        # # Anim
-        # KeepAliveAllClass("AnimSet")
-        # # Char/Veh
-        # KeepAliveAllClass("Material")
-        # KeepAliveAllClass("MaterialInstanceConstant")
-        # KeepAliveAllClass("PhysicsAsset")
-        # KeepAliveAllClass("SkeletalMeshSocket")
-        # KeepAliveAllClass("StaticMesh")
-        # KeepAliveAllClass("Texture2D")
-        # # FX
-        # KeepAliveAllClass("ParticleSpriteEmitter")
-        # KeepAliveAllClass("ParticleSystem")
-        # # GD_AI
-        # KeepAliveAllClass("AIResource")
-        # KeepAliveAllClass("AttributeDefinition")
-        # KeepAliveAllClass("PawnAllegiance")
-        # KeepAliveAllClass("PopulationBodyTag")
-        # KeepAliveAllClass("PopulationSpawnedActorTagDefinition")
-        # KeepAliveAllClass("TargetingDefinition")
-        # # GD_Balance
-        # KeepAliveAllClass("AttributeInitializationDefinition")
-        # KeepAliveAllClass("InteractiveObjectDefinition")
-        # KeepAliveAllClass("InteractiveObjectBalanceDefinition")
-        # # GD_ENEMY
-        # KeepAliveAllClass("AIClassDefinition")
-        # KeepAliveAllClass("AIPawnBalanceDefinition")
-        # KeepAliveAllClass("BehaviorVolumeDefinition")
-        # KeepAliveAllClass("BodyClassDefinition")
-        # KeepAliveAllClass("BodyClassDeathDefinition")
-        # KeepAliveAllClass("BodyHitRegionDefinition")
-        # KeepAliveAllClass("CoordinatedEffectDefinition")
-        # KeepAliveAllClass("GearboxDialogGroup")
-        # KeepAliveAllClass("StanceTypeDefinition")
-        # KeepAliveAllClass("TurnDefinition")
-        # KeepAliveAllClass("WillowAIDefinition")
-        # KeepAliveAllClass("WillowAIPawn")
-        # KeepAliveAllClass("WillowAnimDefinition")
-        # KeepAliveAllClass("WillowDialogEventTag")
-        # # GD_Impacts
-        # KeepAliveAllClass("WillowExplosionImpactDefinition")
-        # KeepAliveAllClass("WillowImpactDefinition")
+        
+        #unrealsdk.GetEngine().GetCurrentWorldInfo().ForceGarbageCollection(True)
 
     loaded_DLCs.append(DLC)
     
+    
+def UnloadLevelSpawnObjects():
+    global loaded_DLCs
+    if loaded_DLCs:
+        UnKeepAliveAllClass("WillowPopulationDefinition")
+        UnKeepAliveAllClass("PopulationFactoryBalancedAIPawn")
+        loaded_DLCs = []

@@ -18,6 +18,7 @@ class Tag(enum.IntEnum):
     BOSS = enum.auto()
     _LENGTH = enum.auto()
 
+
 BadassTagWeights = {
     Tag.CHUMP: 30,
     Tag.MEDIUM: 30,
@@ -28,7 +29,30 @@ BadassTagWeights = {
 }
 """Weights for selecting a spawn by Badass Tag"""
 
-megaMixCache: List[List[Tuple[object, object]]] = []  #Tuple[AIPawnBalanceDefinition, PopulationFactoryBalancedAIPawn]
+POPDEF_TAG_OVERRIDES = [
+    "PopDef_Orchid_SandWormQueen",
+    "PopDef_WitchDoctorMix",
+    "PopDef_WitchDoctorFire",
+    "PopDef_Treant",
+    "PopDef_HiveMind",
+    "PopDef_HiveFlyer_TritonFlats",
+    "PopDef_HiveFlyers_Station_TritonFlats",
+    "PopDef_ShockHives_TritonFlats",
+    "PopDef_BadassHive",
+    "PopDef_ShockHive",
+    "PopDef_CryoHive",
+    "PopDef_GiantCryoHive",
+    "PopDef_ScavWastelandWalker",
+    "PopDef_ElementalIce_Rider",
+    "PopDef_DahlMarine_CentralTerm",
+    "PopDef_Clap_L3K",
+    "PopDef_Opha_Normal",
+    "PopDef_Opha_Heavy",
+]
+"""PopDefs that aren't caught by our other checks but we want to tag as ULTIMATE_BADASS"""
+
+megaMixCache: List[List[Tuple[object, object]]] = []  # Tuple[AIPawnBalanceDefinition, PopulationFactoryBalancedAIPawn]
+
 
 def CacheMegaMixPools():
     global megaMixCache
@@ -50,11 +74,7 @@ def CacheMegaMixPools():
                     continue
                 # Check all body tags match in this pool too
                 bodyTag = GetBodyTagFromFactory(factoryObj)
-                if poolBodyTag:
-                    if bodyTag is not poolBodyTag:
-                        #Log(f"MegaMix - {factoryPath} pool has different BodyTags {bodyTag}, {poolBodyTag}")
-                        poolBodyTag = poolBodyTag
-                else:
+                if not poolBodyTag:
                     poolBodyTag = bodyTag
                 poolCache.append((AIDef, factoryObj))
         if len(poolCache) > 1:
@@ -67,7 +87,7 @@ def CacheMegaMixPools():
 
 
 class Spawn:
-    def __init__(self, name:str, tag:Tag, spawnPointDef, map_whitelist:List[str], map_blacklist:List[str]):
+    def __init__(self, name: str, tag: Tag, spawnPointDef, map_whitelist: List[str], map_blacklist: List[str]):
         self.name = name
         if tag:
             self.tag = tag
@@ -79,13 +99,17 @@ class Spawn:
         self.spawnPointDef = spawnPointDef
         """Specify ONLY spawn points with this WillowPopulationPointDefinition e.g. 'GD_ConstructorShared.Den.PopPointDef_OrbitalDrop'.
          "None" as a string really means None object when we use this."""
+        if self.spawnPointDef == "None":
+            self.delayBetweenSpawns = 0.1
         self.map_whitelist = map_whitelist
         self.map_blacklist = map_blacklist
         
     def LoadObjects(self, mapNameLower) -> bool:
         raise NotImplementedError
+    
     def DenSupportsSpawn(self, den) -> bool:
         raise NotImplementedError
+    
     def GetNewFactoryList(self, den, gameStage, rarity=1, megaMix=False):
         """Returns a list of (factory, spawnPointDef, delay) for a random instance of this spawn"""
         raise NotImplementedError
@@ -189,6 +213,7 @@ class CustomSpawn(Spawn):
                 return False
             allFactories = GetAllFactoriesFromPopDef(self.popDefObj)
             self.factoryObj = [*allFactories][0]  # Assuming all pawns in a factory have the same body tag
+            #self.factoryObj = self.GetFactoryFromPopDef(self.popDefObj)
             if not self.factoryObj:
                 #Log(f"{self.popDef} has no factory!")
                 return False
@@ -202,8 +227,6 @@ class CustomSpawn(Spawn):
     def DenSupportsSpawn(self, den) -> bool:
         """Checks whether this CustomSpawn can use spawn animations for the given den."""
         if not self.factoryObj:
-            # Log(f"A CustomSpawn {self.name} does not have a factory loaded for DenSupportsSpawn!")
-            # return False
             raise ValueError(f"A CustomSpawn {self.name} does not have a factory loaded for DenSupportsSpawn!")
         
         for spawn in den.SpawnPoints:
@@ -224,9 +247,9 @@ class CustomSpawn(Spawn):
                     # Check this tag matches the enemy we want to spawn
                     if bodyTag is self.bodyTagObj:
                         return True
-            # else:
-            #     Log(f"{self.name} - Can't find a BodyTag from {self.factoryObj.PathName(self.factoryObj)} for den {den.PathName(den)}.")
-            #     Log(f"{self.name} - If this pawn actually has BodyTag=None, it needs to use spawnPointDef=\"None\".")
+            else:
+                Log(f"{self.name} - Can't find a BodyTag from {self.factoryObj.PathName(self.factoryObj)} for den {den.PathName(den)}.")
+                Log(f"{self.name} - If this pawn actually has BodyTag=None, it needs to use spawnPointDef=\"None\".")
         
         return False
     
@@ -239,34 +262,36 @@ class CustomSpawn(Spawn):
 
 
 def GetAllFactoriesFromPopDef(popDef) -> Set:
-        """
-        Some PopDefs list PopulationFactoryPopulationDefinition instead of PopulationFactoryBalancedAIPawn.
-        We recurse through these to get the actual PopulationFactoryBalancedAIPawns.
-        """
-        allFactories = set()    # Set to discount any duplicates
-        for archetype in popDef.ActorArchetypeList:
-            spawnFactory = archetype.SpawnFactory
-            if spawnFactory:
-                if str(spawnFactory.Class.Name) == "PopulationFactoryBalancedAIPawn":
-                    allFactories.add(spawnFactory)
-                else:
-                    # Could be a PopulationFactoryPopulationDefinition instead
-                    if spawnFactory.PopulationDef:
-                        allFactories = allFactories.union(GetAllFactoriesFromPopDef(spawnFactory.PopulationDef))
-        return allFactories
+    """
+    Some PopDefs list PopulationFactoryPopulationDefinition instead of PopulationFactoryBalancedAIPawn.
+    We recurse through these to get the actual PopulationFactoryBalancedAIPawns.
+    Some vehicle ones have PopulationFactoryWillowVehicle instead.
+    """
+    allFactories = set()    # Set to discount any duplicates
+    for archetype in popDef.ActorArchetypeList:
+        spawnFactory = archetype.SpawnFactory
+        if spawnFactory:
+            className = str(spawnFactory.Class.Name)
+            if className == "PopulationFactoryBalancedAIPawn" or className == "PopulationFactoryWillowVehicle":
+                allFactories.add(spawnFactory)
+            elif className == "PopulationFactoryPopulationDefinition":
+                if spawnFactory.PopulationDef:
+                    allFactories = allFactories.union(GetAllFactoriesFromPopDef(spawnFactory.PopulationDef))
+    return allFactories
+
 
 def GetBodyTagFromFactory(factory):
     AIPawnBalanceDef = factory.PawnBalanceDefinition
     if not AIPawnBalanceDef:
-        #Log(f"{factory.PathName(factory)} has no PawnBalanceDefinition.")
         return False
     if not AIPawnBalanceDef.AIPawnArchetype:
-        #Log(f"{factory.PathName(factory)} has no AIPawnArchetype.")
         return False
     return AIPawnBalanceDef.AIPawnArchetype.BodyClass.BodyTag
 
+
 def GetMegaMixPoolsFromFactoryList(allFactories) -> List[Tuple[object, object]]:
     return [pool for pool in megaMixCache if any(x[0] in [f.PawnBalanceDefinition for f in allFactories] for x in pool)]
+
 
 def CustomSpawnFromPopDef(PopDef) -> CustomSpawn:
     if not PopDef:
@@ -281,9 +306,15 @@ def CustomSpawnFromPopDef(PopDef) -> CustomSpawn:
     if len(allFactories) == 0:
         #Log(f"{PopDef.PathName(PopDef)} has no factories?!")
         return False
-
+    
     for factory in allFactories:
-        if not factory or factory.bIsCriticalActor or not factory.PawnBalanceDefinition:
+        if not factory or factory.bIsCriticalActor:
+            return None
+        if not factory.PawnBalanceDefinition:
+            if factory.VehicleArchetype:
+                # Tag vehicles as champions so only 1 per spawn
+                numChampions = numChampions + 1
+                continue
             return None
         PawnDef = factory.PawnBalanceDefinition
         if PawnDef:
@@ -294,16 +325,17 @@ def CustomSpawnFromPopDef(PopDef) -> CustomSpawn:
     
     if "unique" in PopDef.PathName(PopDef).lower():
         tag = Tag.MINIBOSS
-    elif numChampions > len(allFactories) / 2:  # Not accounting for sub-popdef chance but whatevs
+    # Not accounting for sub-popdef chance but whatevs
+    elif numChampions > len(allFactories) / 2 or PopDef.Name in POPDEF_TAG_OVERRIDES:
         tag = Tag.ULTIMATE_BADASS
     elif numBadasses > len(allFactories) / 2:
         tag = Tag.BADASS
 
     numSpawns = [1]     # Default for Unique enemies
     if tag == Tag.CHUMP:
-        numSpawns = range(3,7)
+        numSpawns = range(3, 7)
     elif tag == Tag.BADASS:
-        numSpawns = range(2,4)
+        numSpawns = range(2, 4)
         
     spawn = CustomSpawn(
         PopDef.Name,
@@ -316,7 +348,6 @@ def CustomSpawnFromPopDef(PopDef) -> CustomSpawn:
     spawn.bodyTagObj = GetBodyTagFromFactory(spawn.factoryObj)
     if not spawn.bodyTagObj:
         spawn.spawnPointDef = "None"
-        #Log(f"{PopDef.Name} - No BodyTag in {spawn.factoryObj.PathName(spawn.factoryObj)}")
     spawn.megaMixPools = GetMegaMixPoolsFromFactoryList(allFactories)
     return spawn
 
@@ -438,12 +469,12 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                 CustomSpawn("Big Goliath",Tag.BADASS,               popDef="GD_Population_Goliath.Population.PopDef_GoliathTurret"),
             ]),
             MultiSpawn("BBQ Time",Tag.MEDIUM,customSpawnList=[
-                CustomSpawn("Pyro",Tag.CHUMP,                   factory="GD_Population_Bandit.Population.PopDef_BanditMix_Ice_IceCanyon:PopulationFactoryBalancedAIPawn_3"),
+                CustomSpawn("Pyro",Tag.CHUMP,                   factory="GD_Population_Bandit.Population.PopDef_BanditMix_IceCanyon:PopulationFactoryBalancedAIPawn_4"),
                 CustomSpawn("Midgets",Tag.CHUMP,range(2,5),     popDef="GD_Population_Midget.Population.PopDef_FlamingMidget"),
-                CustomSpawn("Fireburn Mix",Tag.CHUMP,range(1,4),popDef="GD_Population_Bandit.Population.PopDef_BanditMix_Ice_IceCanyon"),
+                CustomSpawn("Fireburn Mix",Tag.CHUMP,range(1,4),popDef="GD_Population_Bandit.Population.PopDef_BanditMix_IceCanyon"),
             ]),
             
-            PoolSpawn("Bandit Minibosses",Tag.MINIBOSS,customSpawnList=[
+            PoolSpawn("Bandit Minibosses",Tag.MINIBOSS,customSpawnList=[    # Not allowed where they spawn normally
                 CustomSpawn("Doc Mercy",Tag.MINIBOSS,popDef="GD_Population_Nomad.Population.Unique.PopDef_MrMercy", map_blacklist=["frost_p"]),
                 CustomSpawn("Mad Mike 'boutta ruin your day",Tag.MINIBOSS,popDef="GD_Population_Nomad.Population.Unique.PopDef_MadMike", map_blacklist=["dam_p"]),
                 CustomSpawn("Prospector",Tag.MINIBOSS,popDef="GD_Population_Nomad.Population.Unique.PopDef_Prospector", map_blacklist="tundraexpress_p"),
@@ -452,12 +483,12 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                     CustomSpawn("Ass Oney",Tag.MINIBOSS,    popDef="GD_Population_Nomad.Population.Unique.PopDef_Assassin2"),
                     CustomSpawn("Ass Reeth",Tag.MINIBOSS,   popDef="GD_Population_Psycho.Population.Unique.PopDef_Assassin3"),
                     CustomSpawn("Ass Rouf",Tag.MINIBOSS,    popDef="GD_Population_Rat.Population.Unique.PopDef_Assassin4"),
-                ], map_blacklist=["southpawfactory_p"]),    # Not allowed where they spawn normally
-                MultiSpawn("Deputy Winger",Tag.MINIBOSS,customSpawnList=[
-                    CustomSpawn("Deputy",Tag.MINIBOSS,      popDef="GD_Population_Sheriff.Population.Pop_Deputy"),
-                    CustomSpawn("Marshals",Tag.CHUMP,[4,5], popDef="GD_Population_Sheriff.Population.Pop_Marshal"),
-                ], map_blacklist=["grass_lynchwood_p"]),
-            ], customSpawnWeights=[2,2,2,1,2]),
+                ], map_blacklist=["southpawfactory_p"]),
+                # MultiSpawn("Deputy Winger",Tag.MINIBOSS,customSpawnList=[
+                #     CustomSpawn("Deputy",Tag.MINIBOSS,      popDef="GD_Population_Sheriff.Population.Pop_Deputy"),
+                #     CustomSpawn("Marshals",Tag.CHUMP,[4,5], popDef="GD_Population_Sheriff.Population.Pop_Marshal"),
+                # ], map_blacklist=["grass_lynchwood_p"]),
+            ], customSpawnWeights=[2,2,2,1]),
 
             # Rats
             MultiSpawn("Mine Rats",Tag.CHUMP,customSpawnList=[
@@ -529,7 +560,7 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                 CustomSpawn("Tentacles",Tag.CHUMP,range(4,7),   popDef="GD_Population_Thresher.Population.PopDef_TentacleMix_Regular")
             ]),
             CustomSpawn("Spiderant Mix",Tag.CHUMP,range(4,7),popDef="GD_Population_SpiderAnt.Population.PopDef_SpiderantMix_Regular"),
-            CustomSpawn("Sponics",Tag.CHUMP,range(3,7),factory="GD_Population_SpiderAnt.Population.PopDef_SpiderantMix_Regular:PopulationFactoryBalancedAIPawn_2"),
+            CustomSpawn("Sponics",Tag.CHUMP,range(4,10),factory="GD_Population_SpiderAnt.Population.PopDef_SpiderantMix_Regular:PopulationFactoryBalancedAIPawn_2"),
             PoolSpawn("Stalker Mix",Tag.MEDIUM,numPicks=4,customSpawnList=[
                 CustomSpawn("Stalker",Tag.CHUMP,[1,2],          popDef="GD_Population_Stalker.Population.PopDef_Stalker"),
                 CustomSpawn("Badass",Tag.BADASS,[1],            popDef="GD_Population_Stalker.Population.PopDef_StalkerBadass"),
@@ -577,33 +608,27 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                 CustomSpawn("Ninja",Tag.CHUMP,      popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateNinja"),
                 CustomSpawn("Psycho",Tag.CHUMP,     popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PiratePsycho"),
             ], customSpawnWeights=[2,3,5,5,5,5,5]),
-            MultiSpawn("Pirate Raiding Party",Tag.MEDIUM,customSpawnList=[
+            MultiSpawn("Large Lads",Tag.MEDIUM,customSpawnList=[
                 PoolSpawn("Large Lad",Tag.BADASS,customSpawnList=[
                     CustomSpawn("Anchorman",Tag.BADASS, popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_AnchorMan"),
-                    CustomSpawn("Whaler",Tag.BADASS,    factory="GD_Orchid_Pop_Pirates.MapPopulations.PopDef_Orchid_SpireMix:PopulationFactoryBalancedAIPawn_12"),
                     CustomSpawn("Minelayer",Tag.BADASS, factory="GD_Orchid_Pop_Pirates.MapPopulations.PopDef_Orchid_SpireMix:PopulationFactoryBalancedAIPawn_14"),
-                    CustomSpawn("Buccaneer",Tag.MEDIUM, popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_SwordMan"),
+
                 ]),
-                PoolSpawn("Chumps",Tag.CHUMP,numPicks=4,customSpawnList=[
-                    CustomSpawn("Captain",Tag.BADASS,   popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateCaptain"),
-                    CustomSpawn("Cursed",Tag.MEDIUM,    popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateCursed"),
-                    CustomSpawn("Grenadier",Tag.CHUMP,  popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateGrenadier"),
-                    CustomSpawn("Hunter",Tag.CHUMP,     popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateHunter"),
-                    CustomSpawn("Marauder",Tag.CHUMP,   popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateMarauder"),
-                    CustomSpawn("Ninja",Tag.CHUMP,      popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PirateNinja"),
-                    CustomSpawn("Psycho",Tag.CHUMP,     popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_PiratePsycho"),
-                ], customSpawnWeights=[2,3,5,5,5,5,5])
+                PoolSpawn("Not-so-large Lads",Tag.MEDIUM,numPicks=3,customSpawnList=[
+                    CustomSpawn("Whaler",Tag.MEDIUM,    factory="GD_Orchid_Pop_Pirates.MapPopulations.PopDef_Orchid_SpireMix:PopulationFactoryBalancedAIPawn_12"),
+                    CustomSpawn("Buccaneer",Tag.MEDIUM, popDef="GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_SwordMan"),
+                ])
             ]),
             MultiSpawn("Would you kindly harvest this midget",Tag.MINIBOSS,customSpawnList=[
                 CustomSpawn("Mr Bubbles",Tag.MINIBOSS,  popDef="GD_Orchid_Pop_BubblesLilSis.Population.PopDef_Orchid_Bubbles"),
                 CustomSpawn("Little Sis",Tag.MINIBOSS,  popDef="GD_Orchid_Pop_BubblesLilSis.Population.PopDef_Orchid_LittleSis"),
-            ], map_blacklist=["Orchid_Spire_P"]),
+            ], map_blacklist=["orchid_spire_p"]),
             MultiSpawn("Scarlett Crew",Tag.ULTIMATE_BADASS,customSpawnList=[
                 CustomSpawn("Lt. White",Tag.BADASS,         popDef="GD_Orchid_Pop_ScarlettCrew.Population.PopDef_Orchid_PirateHenchman"),
                 CustomSpawn("Lt. Hoffman",Tag.BADASS,       popDef="GD_Orchid_Pop_ScarlettCrew.Population.PopDef_Orchid_PirateHenchman2"),
                 CustomSpawn("Crew",Tag.MEDIUM,range(1,4),   popDef="GD_Orchid_Pop_ScarlettCrew.Population.PopDef_Betrayal_Mix"),
                 CustomSpawn("Ninjas",Tag.MEDIUM,range(1,3), popDef="GD_Orchid_Pop_ScarlettCrew.Population.PopDef_Orchid_ScarlettNinja"),
-            ], map_blacklist=["Orchid_Spire_P"])
+            ], map_blacklist=["orchid_spire_p"])
         ],
         
         DLC.Torgue: [
@@ -686,7 +711,7 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                 CustomSpawn("Crono",Tag.MINIBOSS,   popDef="GD_Aster_Pop_Skeletons.Population.PopDef_SkeletonKing_Crono"),
                 CustomSpawn("Nazar",Tag.MINIBOSS,   popDef="GD_Aster_Pop_Skeletons.Population.PopDef_SkeletonKing_Nazar"),
                 CustomSpawn("Seth",Tag.MINIBOSS,    popDef="GD_Aster_Pop_Skeletons.Population.PopDef_SkeletonKing_Seth")
-            ], map_blacklist="Dead_Forest_P"),
+            ], map_blacklist="dead_forest_p"),
             # Wizards
             CustomSpawn("Wizards",Tag.MEDIUM,[2,3],[3,1],popDef="GD_Aster_Pop_Wizards.Population.PopDef_WizardsDen_Regular"),
             CustomSpawn("AbracaMAGIC",Tag.BADASS,popDef="GD_Aster_Pop_Wizards.Population.PopDef_WizardsDen_Badass"),
@@ -742,7 +767,7 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
             MultiSpawn("Dark Web",Tag.MINIBOSS,customSpawnList=[
                 CustomSpawn("Dark Web",Tag.MINIBOSS,popDef="GD_Anemone_A_Queen_Digi.Population.PopDef_Anemone_TheDarkWeb"),
                 CustomSpawn("Minions",Tag.CHUMP,[4],popDef="GD_Anemone_DarkWeb_Minions.Population.PopDef_Anemone_DarkWeb_Minions"),
-            ], map_blacklist=["OldDust_P"]),
+            ], map_blacklist=["olddust_p"]),
             CustomSpawn("Cassius",Tag.BOSS,popDef="GD_Anemone_Pop_Cassius.GD_Anemone_PopDef_Cassius",spawnPointDef="None",map_blacklist=["ResearchCenter_P"]),
             
             CustomSpawn("FOV Infected Pods",Tag.MEDIUM,range(3,8),popDef="GD_Anemone_InfectedPodTendril.Population.PopDef_InfectedPodTendril",spawnPointDef="None"),
@@ -787,7 +812,7 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                     CustomSpawn("Female",Tag.BADASS,    popDef="GD_SandFemale.Balance.PopDef_SandFemale"),
                     CustomSpawn("Male",Tag.BADASS,      popDef="GD_SandMale.Balance.PopDef_SandMale")
                 ]),
-            ], map_blacklist=["Hunger_P"]),
+            ], map_blacklist=["hunger_p"]),
             PoolSpawn("Love Thresher",Tag.MINIBOSS,customSpawnList=[
                 CustomSpawn("Blue",Tag.BADASS,     popDef="GD_Nast_ThresherShared.Population.PopDef_Nast_ThresherBlue", spawnPointDef="None"),
                 CustomSpawn("Green",Tag.MEDIUM,    popDef="GD_Nast_ThresherShared.Population.PopDef_Nast_ThresherGreen", spawnPointDef="None"),
@@ -808,9 +833,111 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
     },
     ModMenu.Game.TPS: {
         DLC.TPS: [
-        ],    
+            CustomSpawn("Shy Shuggy",Tag.MEDIUM,popDef="GD_Population_HiveFlyer.Population.PopDef_HiveMind",spawnPointDef="PopDef_HiveFlyerRodunk"),
+            PoolSpawn("Badass Shuggy",Tag.BADASS,customSpawnList=[
+                CustomSpawn("Fire",Tag.BADASS,popDef="GD_Population_HiveFlyer.Population.PopDef_BadassHive"),
+                CustomSpawn("Cryo",Tag.BADASS,popDef="GD_Population_HiveFlyer.Population.PopDef_GiantCryoHive"),
+            ]),
+            
+            MultiSpawn("An actually-fun amount of Kraggons",Tag.CHUMP,customSpawnList=[
+                PoolSpawn("Pebbles",Tag.CHUMP,numPicks=3,customSpawnList=[
+                    CustomSpawn("Rock",Tag.CHUMP,[2,3], popDef="GD_Cork_Population_EleBeast.Population.PopDef_FrostBeast_Small"),
+                    CustomSpawn("Frost",Tag.CHUMP,[2,3],popDef="GD_Cork_Population_EleBeast.Population.PopDef_Frostbeast_Mini"),
+                ]),
+                PoolSpawn("Kraggon",Tag.CHUMP,numPicks=2,customSpawnList=[
+                    CustomSpawn("Rock",Tag.CHUMP,[1,2], popDef="GD_Cork_Population_EleBeast.Population.PopDef_ElementalBeast"),
+                    CustomSpawn("Frost",Tag.CHUMP,[1,2],popDef="GD_Cork_Population_EleBeast.Population.PopDef_FrostBeast"),
+                ]),
+            ]),
+            CustomSpawn("Kraggon Badass",Tag.BADASS,popDef="GD_Cork_Population_EleBeast.Population.PopDef_ElementalSpitterBadass"),
+            PoolSpawn("Kraggon Family Tree",Tag.BADASS,numPicks=3,customSpawnList=[
+                CustomSpawn("Charger",Tag.BADASS,   popDef="GD_Cork_Population_EleBeast.Population.PopDef_ElementalCharger"),
+                CustomSpawn("Immolator",Tag.MEDIUM, popDef="GD_Cork_Population_EleBeast.Population.PopDef_ElementalSpitter"),
+                CustomSpawn("Avalanche",Tag.MEDIUM, popDef="GD_Cork_Population_EleBeast.Population.PopDef_FrostBeast"),
+                CustomSpawn("Eruptor",Tag.BADASS,   popDef="GD_Cork_Population_EleBeast.Population.PopDef_ElementalMama"),
+            ]),
+            PoolSpawn("Kraggon-zilla",Tag.BOSS,customSpawnList=[
+                CustomSpawn("Volcantis",Tag.BOSS,   popDef="GD_Cork_Population_EleBeast.Population.PopDef_Lavazilla"),
+                CustomSpawn("Odjurymir",Tag.BOSS,   popDef="GD_Cork_Population_EleBeast.Population.PopDef_Frostzilla"),
+                CustomSpawn("Iwajira",Tag.BOSS,     popDef="GD_Cork_Population_EleBeast.Population.PopDef_Rockzilla"),
+                CustomSpawn("Phonic",Tag.MINIBOSS,      popDef="GD_Cork_Population_EleBeast.Population.PopDef_ElementalPhonic"),
+            ]),
+            
+            MultiSpawn("Rocketmen",Tag.CHUMP,customSpawnList=[
+                CustomSpawn("Suiciders",Tag.CHUMP,range(3,7),popDef="GD_Population_Scavengers.Population.PopDef_ScavSuicidePsycho"),
+                CustomSpawn("Oscar",Tag.CHUMP,[0,1],[2,1],popDef="GD_Population_Scavengers.Population.PopDef_ScavSuicidePsycho_Oscar"),
+            ]),
+            PoolSpawn("Spacemen",Tag.BADASS,numPicks=3,customSpawnList=[
+                CustomSpawn("Badass",Tag.BADASS,popDef="GD_Population_Scavengers.Population.PopDef_BadassSpaceman"),
+                CustomSpawn("Armored",Tag.BADASS,popDef="GD_Population_Scavengers.Population.PopDef_ScavCombatSpaceman"),
+                #CustomSpawn("Midget",Tag.MEDIUM,popDef="GD_Population_Scavengers.Population.PopDef_ScavMidgetSpaceman"),
+                CustomSpawn("Midget",Tag.MEDIUM,factory="GD_Population_Scavengers.Mixes.PopDef_ScavGroundMix_Spacemen:PopulationFactoryBalancedAIPawn_19"),
+                CustomSpawn("Ground",Tag.MEDIUM,popDef="GD_Population_Scavengers.Population.PopDef_ScavNomad"),
+            ],customSpawnWeights=[1,3,4,2]),
+            MultiSpawn("Welcome to the Darkside",Tag.BADASS,customSpawnList=[
+                CustomSpawn("Acolytes",Tag.CHUMP,numSpawns=range(4,8),popDef="GD_Population_Scavengers.Mixes.PopDef_ScavGroundMix_Darksiders"),
+                PoolSpawn("Badass Bandit",Tag.MINIBOSS,customSpawnList=[
+                    CustomSpawn("Fair Diknum",Tag.MINIBOSS,[0,1],[2,3],popDef="GD_Population_Darksiders.Population.PopDef_DarksiderBadassPsycho"),
+                    CustomSpawn("Wally Wrong",Tag.MINIBOSS,[0,1],[2,3], popDef="GD_Population_Darksiders.Population.PopDef_BadassDarksiderBandit"),
+                    CustomSpawn("Magma Rivers",Tag.MINIBOSS,[0,1],[2,3],popDef="GD_Population_Darksiders.Population.PopDef_LittleDarksiderBadassBandit"),
+                ]),
+            ]),
+            
+            MultiSpawn("Lost Legion Squad",Tag.MEDIUM,customSpawnList=[
+                PoolSpawn("Leader",Tag.BADASS,customSpawnList=[
+                    CustomSpawn("Bob",Tag.MINIBOSS,popDef="GD_Population_Dahl.Population.PopDef_DahlMarine_CentralTerm"),
+                    CustomSpawn("Sergeant",Tag.MEDIUM,popDef="GD_Population_Dahl.Population.PopDef_DahlSergeant"),
+                    CustomSpawn("Badass",Tag.BADASS,popDef="GD_Population_Dahl.Population.PopDef_BadassDahlMarine"),
+                ]),
+                CustomSpawn("Squaddies",Tag.CHUMP,numSpawns=range(5,8),popDef="GD_Population_Dahl.Population.PopDef_DahlMix_NoPowerSuits"),
+            ],map_blacklist=["innercore_p"]),
+            
+            MultiSpawn("Boils",Tag.CHUMP,customSpawnList=[
+                CustomSpawn("Boils",Tag.CHUMP,range(3,6),  popDef="GD_Population_Boils.Population.PopDef_BoilMix_All"),
+                CustomSpawn("Guards",Tag.CHUMP,range(3,6), popDef="GD_Population_Boils.Population.PopDef_HypRatMix"),
+            ]),
+            
+            # Holodome enemies are just going in the base game...
+            PoolSpawn("Power Suits",Tag.BADASS,customSpawnList=[
+                CustomSpawn("Scav",Tag.BADASS,range(1,4),[3,3,1],popDef="GD_Population_Scavengers.Population.PopDef_ScavPowerSuit"),
+                CustomSpawn("Dahl",Tag.BADASS,range(1,4),[3,3,1],popDef="GD_Population_Dahl.Squads.PopDef_PowerSuitMix_Laser"),
+                CustomSpawn("Eternal",Tag.BADASS,range(1,4),[3,3,1],popDef="GD_Pet_Population_Dahl.Mixes.PopDef_Mix_EternalPowersuits"),
+            ]),
+            CustomSpawn("This is Pondorous, man...",Tag.BADASS,range(2,5),[3,3,1],popDef="GD_Pet_Population_Guardians.Population.PopDef_GuardianPondor"),
+            MultiSpawn("Eridian Incursion",Tag.BADASS,customSpawnList=[
+                PoolSpawn("Bosses",Tag.MINIBOSS,customSpawnList=[
+                    CustomSpawn("Opha Superior",Tag.MINIBOSS,[0,1],   popDef="GD_Population_Eridian_OphaBoss.Population.PopDef_Eridian_OphaBoss"),
+                    CustomSpawn("Virtuous Opha",Tag.BADASS,   popDef="GD_Population_Eridian_Opha.Population.PopDef_Opha_BadAss"),
+                ]),
+                PoolSpawn("Badasses",Tag.BADASS,numPicks=2,customSpawnList=[
+                    CustomSpawn("Elder Opha",Tag.BADASS,        popDef="GD_Population_Eridian_Opha.Population.PopDef_Opha_Heavy"),
+                    CustomSpawn("Virutous Opha",Tag.BADASS,     popDef="GD_Population_Guardians.Opha.Population.PopDef_Virtuous_Opha"),
+                    CustomSpawn("Cheru",Tag.BADASS,[1,2],       popDef="GD_Population_Guardians.Cheru.Population.PopDef_Cheru_BadAss"),
+                    CustomSpawn("Sara",Tag.BADASS,[1,2],        popDef="GD_Population_Guardians.Sera.Population.PopDef_Sara_Badass"),
+                    CustomSpawn("Arch Guardian",Tag.BADASS,     popDef="GD_Population_Guardians.Sera.Population.PopDef_Arch_Guardian"),
+                    CustomSpawn("Pondor",Tag.BADASS,[1,2],[1,2],popDef="GD_Pet_Population_Guardians.Population.PopDef_GuardianPondor"),
+                ]),
+                PoolSpawn("Chumps",Tag.CHUMP,customSpawnList=[
+                    CustomSpawn("Cheru",Tag.CHUMP,range(3,6),   popDef="GD_Population_Guardians.Cheru.Population.PopDef_Cheru"),
+                    CustomSpawn("Reaper",Tag.CHUMP,range(3,5),  popDef="GD_Population_Guardians.Cheru.Population.PopDef_Guardian_Reaper"),
+                    CustomSpawn("Wraith",Tag.CHUMP,range(3,5),  popDef="GD_Population_Guardians.Cheru.Population.PopDef_Guardian_Wraith"),
+                    CustomSpawn("Sara",Tag.CHUMP,range(3,6),    popDef="GD_Population_Guardians.Sera.Population.PopDef_Sara"),
+                ]),
+            ])
+        ],
         DLC.Claptastic: [
-        ]
+            MultiSpawn("Release the DAWGS",Tag.CHUMP,customSpawnList=[
+                CustomSpawn("Puppy",Tag.CHUMP,range(4,9),   popDef="GD_Ma_Pop_ClaptrapForces.Population.PopDef_ClapPuppy"),
+                CustomSpawn("Dawg",Tag.CHUMP,[1,2],[3,1],   popDef="GD_Ma_Pop_ClaptrapForces.Population.PopDef_ClapDawg"),
+                CustomSpawn("Badass",Tag.BADASS,[0,1],       popDef="GD_Ma_Pop_ClaptrapForces.Population.PopDef_BadassClapDawg"),
+            ]),
+            MultiSpawn("Tassitrons",Tag.MEDIUM,customSpawnList=[
+                CustomSpawn("BlackOps",Tag.CHUMP,range(1,4),    popDef="GD_Ma_Pop_Engineer.Population.PopDef_BlackOps"),
+                CustomSpawn("Engineer",Tag.CHUMP,range(2,5),    popDef="GD_Ma_Pop_Engineer.Population.PopDef_Engineer"),
+                CustomSpawn("EngineerArms",Tag.CHUMP,range(2,5),popDef="GD_Ma_Pop_Engineer.Population.PopDef_EngineerArms"),
+            ]),
+            CustomSpawn("ShadowClone",Tag.MINIBOSS,range(3,6),  popDef="GD_Ma_Pop_ClaptrapForces.Population.Uniques.PopDef_ShadowClone_Eos"),
+        ],
     }
 }[ModMenu.Game.GetCurrent()]
 
@@ -870,7 +997,7 @@ megaMixSubstitutionPools: List[List[str]] = {
             "GD_Psycho_Digi.Population.PopDef_Psycho_Digi:PopulationFactoryBalancedAIPawn_0",
         ],
         [   # Suicide Psychos
-            "GD_Population_Psycho.Population.PopDef_PsychoSuicide:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_Psycho.Population.PopDef_PsychoMix_Regular:PopulationFactoryBalancedAIPawn_32",
             "GD_Orchid_Pop_Pirates.Population.PopDef_Orchid_MarauderMix:PopulationFactoryBalancedAIPawn_9",
         ],
         [   # Badass Psychos
@@ -919,7 +1046,7 @@ megaMixSubstitutionPools: List[List[str]] = {
             "GD_Anemone_Pop_Infected.Population.PopDef_Infected_MIX:PopulationFactoryBalancedAIPawn_4",
         ],
         [   # Nomads
-            "GD_Population_Nomad.Population.PopDef_Nomad:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_Nomad.Population.PopDef_NomadMix_Regular:PopulationFactoryBalancedAIPawn_3",
             "GD_Lobelia_TannisPops.Population.PopDef_BanditMixture:PopulationFactoryBalancedAIPawn_2",
         ],
         [   # Goliaths
@@ -953,8 +1080,48 @@ megaMixSubstitutionPools: List[List[str]] = {
             "GD_Population_BugMorphs.Population.PopDef_BugMorph_TropicalMix:PopulationFactoryBalancedAIPawn_1",
             "GD_Population_BugMorphs.Population.PopDef_BugMorph_TropicalMix:PopulationFactoryBalancedAIPawn_2",
         ],
+        [   # Crystalisk with Blue Crystalisk
+            "GD_Population_Crystalisk.Population.PopDef_CrystaliskMix_Regular:PopulationFactoryBalancedAIPawn_1",
+            "GD_Orchid_Pop_Crystalisk.Population.PopDef_Orchid_CrystaliskAqua:PopulationFactoryBalancedAIPawn_1",
+        ]
     ],
     ModMenu.Game.TPS:[
+        [   # Scavs with Darksiders
+            "GD_Population_Scavengers.Population.PopDef_ScavengerBandit:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_Scavengers.Mixes.PopDef_ScavGroundMix_Darksiders:PopulationFactoryBalancedAIPawn_1",
+        ],
+        [   # Psycho
+            "GD_Population_Scavengers.Population.PopDef_ScavengerPsycho:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_Scavengers.Mixes.PopDef_ScavGroundMix_Darksiders:PopulationFactoryBalancedAIPawn_7",
+        ],
+        [   # Midget
+            "GD_Population_Scavengers.Population.PopDef_ScavMidget:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_Scavengers.Mixes.PopDef_ScavGroundMix_Darksiders:PopulationFactoryBalancedAIPawn_2",
+        ],
+        [   # Midget Psycho
+            "GD_Population_Scavengers.Population.PopDef_ScavPsychoMidget:PopulationFactoryBalancedAIPawn_0",
+            "GD_Population_Scavengers.Mixes.PopDef_ScavGroundMix_Darksiders:PopulationFactoryBalancedAIPawn_8",
+        ],
+        [   # Clapdog
+            "GD_Ma_Pop_ClaptrapForces.Population.PopDef_ClapPuppy:PopulationFactoryBalancedAIPawn_0",
+            "GD_Ma_Pop_ClaptrapForces.Population.PopDef_VeryInsecureClapPuppy:PopulationFactoryBalancedAIPawn_0",
+        ],
+        [   # Patroltrap
+            "GD_Ma_Pop_ClaptrapForces.Population.PopDef_InsecurityBot:PopulationFactoryBalancedAIPawn_0",
+            "GD_Ma_Pop_ClaptrapForces.Population.PopDef_VeryInsecureBot:PopulationFactoryBalancedAIPawn_0",
+        ],
+        [   # Snipertrap
+            "GD_Ma_Pop_ClaptrapForces.Population.PopDef_InsecuritySniper:PopulationFactoryBalancedAIPawn_0",
+            "GD_Ma_Pop_ClaptrapForces.Population.PopDef_VeryInsecureSniper:PopulationFactoryBalancedAIPawn_0",
+        ],
+        [   # Flytrap
+            "GD_Ma_Pop_ClaptrapForces.Population.PopDef_PermFlyTrap:PopulationFactoryBalancedAIPawn_0",
+            "GD_Ma_Pop_ClaptrapForces.Population.PopDef_VeryInsecureFlight:PopulationFactoryBalancedAIPawn_0",
+        ],
+        [   # Badasstrap
+            "GD_Ma_Pop_ClaptrapForces.Population.PopDef_CleanupRuntime:PopulationFactoryBalancedAIPawn_0",
+            "GD_Ma_Pop_ClaptrapForces.Population.PopDef_VeryInsecureBadass:PopulationFactoryBalancedAIPawn_0",
+        ],
     ]
 }[ModMenu.Game.GetCurrent()]
 """Each list is a pool of PopulationFactoryBalancedAIPawn - we can get the AIPawnBalanceDefinition from the factory here to compare"""
