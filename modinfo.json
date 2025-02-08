@@ -31,17 +31,16 @@
                 "Options for spawn frequency and distance to the player, and which enemies to use:\n",
                 "- Den\t\t- Only spawns enemies that usually spawn from a chosen point.\n",
                 "- Level\t- Only spawns enemies loaded in the current level.\n",
-                "- DLC*\t- May spawn any custom enemy groups from the current DLC (or base game).\n",
-                "- Game*\t- May spawn any custom enemy groups from the entire game.\n",
-                "*These options require all available enemies to be loaded upon reaching the start menu.\n",
-                "*This causes a few textures to break, and possibly crashes."
+                "- DLC\t\t- May spawn any custom enemy groups from the current DLC (or base game).\n",
+                "- Game\t- May spawn any custom enemy groups from the entire game.\n",
             ],
-            "supports": ["BL2"],
+            "supports": ["BL2", "TPS"],
             "types": ["Gameplay"],
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/AmbientSpawns",
-            "latest": "1.1.0",
+            "latest": "1.2.0",
             "versions": {
-                "1.1.0": "https://github.com/Siggless/bl-sdk-mods/blob/a6c6e251ab8f483b305534c04bdfbb02610be490/AmbientSpawns/AmbientSpawns.zip"
+                "1.1.0": "https://github.com/Siggless/bl-sdk-mods/blob/a6c6e251ab8f483b305534c04bdfbb02610be490/AmbientSpawns/AmbientSpawns.zip",
+                "1.2.0": "https://github.com/Siggless/bl-sdk-mods/blob/09662429a35eed343cd2cc0a99711d46ccc3de3a/AmbientSpawns/AmbientSpawns.zip"
             },
             "requirements": {
                 "UserFeedback": ">=1.6"
