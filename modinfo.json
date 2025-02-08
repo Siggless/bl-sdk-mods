@@ -15,8 +15,7 @@
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/AltUseCatchARide",
             "latest": "1.1.0",
             "versions": {
-                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/tree/main/AltUseCatchARide",
-                "1.1.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/AltUseCatchARide/AltUseCatchARide.zip"
+                "1.1.0": "https://github.com/Siggless/bl-sdk-mods/blob/a6c6e251ab8f483b305534c04bdfbb02610be490/AltUseCatchARide/AltUseCatchARide.zip"
             },
             "requirements": {
                 "Enums": ">=1.0"
@@ -42,7 +41,7 @@
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/AmbientSpawns",
             "latest": "1.1.0",
             "versions": {
-                "1.1.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/AmbientSpawns/AmbientSpawns.zip"
+                "1.1.0": "https://github.com/Siggless/bl-sdk-mods/blob/a6c6e251ab8f483b305534c04bdfbb02610be490/AmbientSpawns/AmbientSpawns.zip"
             },
             "requirements": {
                 "UserFeedback": ">=1.6"
@@ -56,7 +55,7 @@
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/BARLock",
             "latest": "1.0.0",
             "versions": {
-                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/BARLock/BARLock.zip"
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/blob/a6c6e251ab8f483b305534c04bdfbb02610be490/BARLock/BARLock.zip"
             }
         },
         {
@@ -67,7 +66,7 @@
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/GrenadeModQuickSwitcher",
             "latest": "1.0.0",
             "versions": {
-                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/GrenadeModQuickSwitcher/GrenadeModQuickSwitcher.zip"
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/blob/a6c6e251ab8f483b305534c04bdfbb02610be490/GrenadeModQuickSwitcher/GrenadeModQuickSwitcher.zip"
             }
         },
         {
@@ -78,7 +77,7 @@
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/SodOffSkeletonMages",
             "latest": "1.0.0",
             "versions": {
-                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/SodOffSkeletonMages/SodOffSkeletonMages.zip"
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/blob/a6c6e251ab8f483b305534c04bdfbb02610be490/SodOffSkeletonMages/SodOffSkeletonMages.zip"
             }
         },
         {
@@ -89,7 +88,7 @@
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/LessDOTScreams",
             "latest": "1.0.0",
             "versions": {
-                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/LessDOTScreams/LessDOTScreams.zip"
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/blob/a6c6e251ab8f483b305534c04bdfbb02610be490/LessDOTScreams/LessDOTScreams.zip"
             }
         },
         {
@@ -99,7 +98,7 @@
             "source": "https://github.com/Siggless/bl-sdk-mods/tree/main/JumpToLevelChallenges",
             "latest": "1.0.0",
             "versions": {
-                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/raw/main/JumpToLevelChallenges/JumpToLevelChallenges.zip"
+                "1.0.0": "https://github.com/Siggless/bl-sdk-mods/blob/a6c6e251ab8f483b305534c04bdfbb02610be490/JumpToLevelChallenges/JumpToLevelChallenges.zip"
             },
             "requirements": {
                 "Enums": ">=1.0"
