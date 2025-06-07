@@ -1,0 +1,8 @@
+[project]
+name = "Grenade Mod Quick Switcher"
+version = "2.0.0"
+authors = [{name = "Siggles"}]
+description = "Adds a keybind that cycles through grenade mods marked as favourite.\n\nCycles in the order that items were added to the backpack, or unequipped."
+
+[tool.sdkmod]
+license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
