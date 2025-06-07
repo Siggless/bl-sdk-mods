@@ -1,0 +1,12 @@
+[project]
+name = "Less DOT Screams"
+version = "2.0.0"
+authors = [{name = "Siggles"}]
+description = """
+Options to disable DOT (status effect) screams, or only to play when shield is broken.
+\n\n
+To customise for certain characters, consider <font color='#00ffe8'>Customizable Player Audio Muter</font> BLCMM text mod instead.
+"""
+
+[tool.sdkmod]
+license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }

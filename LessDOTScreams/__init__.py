@@ -1,69 +1,63 @@
-import unrealsdk
-from Mods import ModMenu
-from Mods.ModMenu import EnabledSaveType, ModTypes, Hook
-   
-class LessDOTScreams(ModMenu.SDKMod):
-    Name: str = "Less DOT Screams"
-    Author: str = "Siggles"
-    Description: str = "Player DOT (status effect) screams don't play unless shield is broken."\
-                        "\n\nTo fully disable for certain characters, use <font color='#00ffe8'>Customizable Player Audio Muter</font> BLCMM text mod instead."
-    Version: str = "1.0.0"
-    SupportedGames: ModMenu.Game = ModMenu.Game.BL2 | ModMenu.Game.TPS | ModMenu.Game.AoDK
-    Types: ModTypes = ModTypes.Gameplay  # One of Utility, Content, Gameplay, Library; bitwise OR'd together
-    SaveEnabledState: EnabledSaveType = EnabledSaveType.LoadOnMainMenu
+from unrealsdk import find_class, find_enum, make_struct
+from unrealsdk.hooks import Block, Type 
+from unrealsdk.unreal import BoundFunction, UObject, WrappedStruct
+from mods_base.options import BoolOption, SpinnerOption
+from mods_base import build_mod, hook, get_pc
+from typing import Any
 
-    @Hook("GearboxFramework.Behavior_TriggerDialogEvent.TriggerDialogEvent")
-    def TriggerDialogEvent(self, caller: unrealsdk.UObject, function: unrealsdk.UFunction, params: unrealsdk.FStruct) -> bool:
-        """
-        Fires when a TriggerDialogEvent is applied
-        In particular, we want to check StatusEffectDefinition's OnApplication Behavior_TriggerDialogEvent
-        """
-        # Don't preventing slag (Status_Amp) and healing effects
-        if caller.Outer.Class.Name == "StatusEffectDefinition" and caller.Outer.Name != "Status_Amp" and caller.Outer.Name != "Status_Healing":
-            # Only affect PC dialog
-            if params.ContextObject.Class.Name == "WillowPlayerPawn":
-                pawn = params.ContextObject
-                # Only return true to play the VO if the shield is empty
-                return pawn.ShieldArmor == None or pawn.ShieldArmor.Data.GetCurrentValue() <= 0
-        return True
+_classStatusDef = find_class("StatusEffectDefinition")
+STATUS_TYPE = find_enum("EStatusEffectType")
+_BehaviorParameters = make_struct("BehaviorParameters")
 
-    #@ModMenu.Hook("WillowGame.WillowPawn:OnShieldDepleted") # Doesn't fire?
-    @Hook("WillowGame.StatusEffectsComponent.StartEffectSound")
-    def StartEffectSound(self, caller: unrealsdk.UObject, function: unrealsdk.UFunction, params: unrealsdk.FStruct) -> bool:
-        """
-        Triggers repeatedly whilst a status effect is active on a Pawn
-        We use this to start the status effect VO when the player's shield breaks, if one is still active
-        """
-        if caller.Owner.Class.Name == "WillowPlayerPawn":
-            pawn = caller.Owner
-            # Check if this is the current PC 
-            if pawn.Controller == unrealsdk.GetEngine().GamePlayers[0].Actor:
-                # Check if the shield is depleted - OnShieldDeplete doesn't fire for some reason? Maybe only for AIs?
-                if pawn.ShieldArmor == None or pawn.ShieldArmor.Data.GetCurrentValue() <= 0:
-                    
-                    statusDefinition = caller.GetMostRecentStatusEffect()
-                    if statusDefinition != None and statusDefinition.Name != "Status_Amp" and statusDefinition.Name != "Status_Healing":
-                        # Play the status effect VO
-                        dialogBehavior = statusDefinition.OnApplication[1]  # Assuming that the Behavior_TriggerDialogEvent is always this index
-                        if dialogBehavior != None and dialogBehavior.Class.Name == "Behavior_TriggerDialogEvent":
-                            dialogBehavior.TriggerDialogEvent(pawn,pawn,None,None,())
-        return True
-    
-### End class NoDOTScreams
+options = {
+    "Never" : 0,
+    "No Shield" : 1,
+    "Always" : 2,
+}
+keys = list(options.keys())
+_optionsByClass = {
+    find_class("WillowPlayerPawn") : SpinnerOption("Player Screams", keys[1], keys, description="When player DOT screams will play from status effects."),
+    find_class("WillowAIPawn") : SpinnerOption("Enemy Screams", keys[2], keys, description="When NPC DOT screams will play from status effects."),
+}
 
 
-instance = LessDOTScreams()
-#This section let's us reload the mod in-game using `pyexec LessDOTScreams/__init__.py`
-if __name__ == "__main__":
-    unrealsdk.Log(f"[{instance.Name}] Manually loaded")
-    for mod in ModMenu.Mods:
-        if mod.Name == instance.Name:
-            if mod.IsEnabled:
-                mod.Disable()
-            ModMenu.Mods.remove(mod)
-            unrealsdk.Log(f"[{instance.Name}] Removed last instance")
+@hook("GearboxFramework.Behavior_TriggerDialogEvent:TriggerDialogEvent")
+def TriggerDialogEvent(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunction) -> type[Block] | None:
+    """
+    Fires when a TriggerDialogEvent is applied
+    In particular, we want to check StatusEffectDefinition's OnApplication Behavior_TriggerDialogEvent
+    """
+    if obj.Outer and obj.Outer.Class is _classStatusDef:
+        # Don't prevent slag (Status_Amp) and healing effects
+        statusType = obj.Outer.StatusEffectType
+        if statusType != STATUS_TYPE.STATUS_EFFECT_Amp and statusType != STATUS_TYPE.STATUS_EFFECT_Healing:
+            pawn = args.ContextObject
+            if pawn.Class in _optionsByClass:
+                val = options[_optionsByClass[pawn.Class].value]
+                if val == 0:
+                    return Block
+                elif val == 1:
+                    # Block the VO if the shield is not empty
+                    if pawn.ShieldArmor and pawn.ShieldArmor.Data and pawn.ShieldArmor.Data.GetCurrentValue() > 0:
+                        return Block
 
-            # Fixes inspect.getfile()
-            instance.__class__.__module__ = mod.__class__.__module__
-            break
-ModMenu.RegisterMod(instance)
+
+@hook("WillowGame.StatusEffectsComponent:StartEffectSound")
+def StartEffectSound(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunction) -> type[Block] | None:
+    """
+    Triggers repeatedly whilst a status effect is active on a Pawn
+    We use this to start the status effect VO when the player's shield breaks, if one is still active
+    """
+    pawn = obj.Owner
+    if pawn.Class in _optionsByClass and options[_optionsByClass[pawn.Class].value] == 1:
+        # Check if the shield is depleted - OnShieldDeplete doesn't fire for some reason?
+        if pawn.ShieldArmor and pawn.ShieldArmor.Data and pawn.ShieldArmor.Data.GetCurrentValue() <= 0:
+            statusDef = obj.GetMostRecentStatusEffect()
+            if statusDef and statusDef.StatusEffectType != STATUS_TYPE.STATUS_EFFECT_Amp and statusDef.StatusEffectType != STATUS_TYPE.STATUS_EFFECT_Healing:
+                # Play the status effect VO
+                dialogBehavior = statusDef.OnApplication[1]  # Assuming that the Behavior_TriggerDialogEvent is always this index
+                if dialogBehavior and dialogBehavior.Class.Name == "Behavior_TriggerDialogEvent":
+                    dialogBehavior.TriggerDialogEvent(pawn, pawn, None, None, _BehaviorParameters)
+
+
+build_mod(options=list(_optionsByClass.values()))
