@@ -1,85 +1,101 @@
-import unrealsdk
+from unrealsdk import find_class, logging
+from unrealsdk.hooks import Block, Type
+from unrealsdk.unreal import BoundFunction, UObject, WrappedStruct, WeakPointer
+from mods_base import build_mod, hook, BoolOption
+from typing import Any
 import random
-from Mods import ModMenu
-from Mods.ModMenu import EnabledSaveType, Game, ModTypes, Hook, SDKMod
-   
-_MAX_FREQUENCY = 30
-_MAGE_CLASSNAME:str = "CharClass_Skeleton_Mage"
 
-class SodOffSkeletonMages(SDKMod):
-    Name: str = "Sod Off, Skeleton Mages!"
-    Author: str = "Siggles"
-    Description: str = "Skeleton Mages have less chance to cloak each time they appear. Eventually stops them disappearing."
-    Version: str = "1.0.0"
-    SupportedGames: Game = Game.BL2 | Game.AoDK
-    Types: ModTypes = ModTypes.Gameplay
-    SaveEnabledState: EnabledSaveType = EnabledSaveType.LoadOnMainMenu
-    
-    allowFrequency = 0
-    '''1 in X enemy state changes are allowed, the rest are blocked. The bigger this value, the more likely we block the state change'''
-    skellyCount: int = 0
-    '''Since we are hooking into something that fires often, I want to only do these checks when we know Skellies are present'''
+optionPreventCloaking = BoolOption("Prevent Cloaking", False, description="Whether eventually, a Skelly Mage will stop cloaking altogether when moving.")
 
+_MAX_FREQUENCY = 25
+_AIPAWN_CLASS = find_class("WillowAIPawn")
+_MAGE_AICLASS: WeakPointer = WeakPointer(None)
 
-    @Hook("WillowGame.Action_GenericAttack.CanMove")
-    def CanMove(self, caller: unrealsdk.UObject, function: unrealsdk.UFunction, params: unrealsdk.FStruct) -> bool:
-        '''
-        This is called within GetDesiredState to decide whether to HoldStill or MoveToTarget. We skip this to return false and always hold still
-        I'd like to add an additional condition in here for currently being in the 'Attack' state but IDK how to call IsInState() properly
-        '''
-        if self.skellyCount>0 and self.allowFrequency>1:
-            if caller.MyWillowPawn.AIClass is not None:
-                if str(caller.MyWillowPawn.AIClass.Name) == _MAGE_CLASSNAME:
-                    randy = random.uniform(0, self.allowFrequency)
-                    if randy>1:
-                        return False
-        return True
-  
+_skellyFrequencies: dict[int, tuple[bool, float, bool]] = {}
+'''
+Tuple [cloaked, frequency, blocked]
+1 in X enemy state changes are allowed, the rest are blocked. The bigger the frequency value, the more likely we block the state change.
+Since we are hooking into something that fires often, I want to only do these checks when we know Skellies are present.
+So these hooks are disabled by default, and only enabled whilst this dict has items.
+'''
 
-    @Hook("WillowGame.Action_Burrow.CheckCloaked")
-    def BurrowCheckCloaked(self, caller: unrealsdk.UObject, function: unrealsdk.UFunction, params: unrealsdk.FStruct) -> bool:
-        '''
-        Blocking this stops the enemies cloaking, without messing with their action state (so they still move just don't turn invisible)
-        '''
-        if caller.MyWillowPawn.AIClass is not None:
-            if str(caller.MyWillowPawn.AIClass.Name) == _MAGE_CLASSNAME:
-                if params.Type==1:  # BodyClassDefinition.ECloakType.CLOAK_AttackAnim
-                    if self.allowFrequency < _MAX_FREQUENCY:
-                        # Simple function for scaling chances back
-                        self.allowFrequency = min(_MAX_FREQUENCY,(self.allowFrequency+0.18)*1.5)
-                    else:
-                        # If we are at the max frequency, then also stop cloaking altogether
-                        return False
-        return True
+@hook("WillowGame.WillowPawn:SetGameStage")
+def SetGameStage(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunction):
+    '''
+    Triggers when an enemy spawns (from PopulationFactoryWillowAIPawn SetupPopulationActor)
+    If it's a Skelly Mage, add to our dict, and enable hooks to start futzing with stuff
+    '''
+    if obj.Class is _AIPAWN_CLASS:
+        global _skellyFrequencies, _MAGE_AICLASS
+        if _MAGE_AICLASS() is None and obj.AIClass.Name == "CharClass_Skeleton_Mage":
+            _MAGE_AICLASS = WeakPointer(obj.AIClass)
+        if obj.AIClass is _MAGE_AICLASS():
+            if len(_skellyFrequencies) == 0:
+                logging.dev_warning("First skelly spawned!")
+                CheckStateTransition.enable()
+                BurrowCheckCloaked.enable()
+                Died.enable()
+            _skellyFrequencies[obj.InternalIndex] = (False, 0, False)
 
 
-    @Hook("WillowGame.WillowPawn.SetGameStage")
-    def SetGameStage(self, caller: unrealsdk.UObject, function: unrealsdk.UFunction, params: unrealsdk.FStruct) -> bool:
-        '''
-        Triggers when an enemy spawns (from PopulationFactoryWillowAIPawn SetupPopulationActor)
-        If it's a Skelly Mage, increment our counter so we know when to futz with stuff
-        '''
-        if caller.AIClass is not None:
-            if str(caller.AIClass.Name) == _MAGE_CLASSNAME:
-                self.skellyCount = self.skellyCount+1
-        return True
-    
+@hook("WillowGame.Action_GenericAttack:CanMove")
+def CheckStateTransition(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunction) -> type[Block] | None:
+    '''
+    This is called within GetDesiredState to decide whether to HoldStill or MoveToTarget. We skip this to return false and always hold still
+    '''
+    pawn = obj.MyWillowPawn
+    if pawn.Class is _AIPAWN_CLASS and pawn.AIClass is _MAGE_AICLASS():
+        global _skellyFrequencies
+        data = _skellyFrequencies[pawn.InternalIndex]
+        if not data[0]:
+            if data[2]:
+                return Block
 
-    @Hook("Engine.Pawn.Destroyed")  # For despawning without dying
-    @Hook("WillowGame.WillowAIPawn.Died")
-    def Died(self, caller: unrealsdk.UObject, function: unrealsdk.UFunction, params: unrealsdk.FStruct) -> bool:
-        '''
-        Triggers when an enemy dies
-        If a Skelly Mage dies, reset our state change blocker value
-        '''
-        if self.skellyCount>0:
-            if caller.AIClass is not None:
-                if str(caller.AIClass.Name) == _MAGE_CLASSNAME:
-                    self.allowFrequency = 0
-                    self.skellyCount = max(0, self.skellyCount-1)
-        return True
 
-### End class SodOffSkeletonMages
+@hook("WillowGame.Action_Burrow:CheckCloaked")
+def BurrowCheckCloaked(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunction) -> type[Block] | None:
+    '''
+    Blocking this stops the enemies cloaking, without messing with their action state (so they still move just don't turn invisible)
+    '''
+    pawn = obj.MyWillowPawn
+    if pawn.Class is _AIPAWN_CLASS and pawn.AIClass is _MAGE_AICLASS():
+        global _skellyFrequencies
+        freq = _skellyFrequencies[pawn.InternalIndex][1]
+        
+        if args.Type == 1:  # BodyClassDefinition.ECloakType.CLOAK_AttackAnim
+            if freq < _MAX_FREQUENCY:
+                # Simple function for scaling chances back
+                freq = min(_MAX_FREQUENCY,(freq + 0.18) * 1.5)
+            _skellyFrequencies[pawn.InternalIndex] = (True, freq, False)
+            
+            if freq >= _MAX_FREQUENCY and optionPreventCloaking.value:
+                # If we are at the max frequency, then also stop cloaking altogether
+                return Block
+            
+        else:
+            blockMoves: bool = random.uniform(0, freq) >= 1
+            _skellyFrequencies[pawn.InternalIndex] = (False, freq, blockMoves)
 
-instance = SodOffSkeletonMages()
-ModMenu.RegisterMod(instance)
+
+@hook("Engine.Pawn:Destroyed")  # For despawning without dying - including level change
+@hook("WillowGame.WillowAIPawn:Died")
+def Died(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunction):
+    '''
+    Triggers when an enemy dies
+    If a Skelly Mage dies, remove from our dict, and disable hooks if there are no more alive
+    '''
+    global _skellyFrequencies
+    skellyCount = len(_skellyFrequencies)
+    if skellyCount > 0:
+        if obj.Class is _AIPAWN_CLASS and obj.AIClass is _MAGE_AICLASS():
+            if obj.InternalIndex in _skellyFrequencies:
+                _skellyFrequencies.pop(obj.InternalIndex)
+                skellyCount = skellyCount - 1
+                if skellyCount == 0:
+                    logging.dev_warning("Last skelly died!")
+                    CheckStateTransition.disable()
+                    BurrowCheckCloaked.disable()
+                    #Died.disable() # Can't disable own function? Whatever just leave this on
+
+
+build_mod(hooks=[SetGameStage])

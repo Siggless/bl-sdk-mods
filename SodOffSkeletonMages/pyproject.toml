@@ -1,0 +1,8 @@
+[project]
+name = "Sod Off, Skeleton Mages!"
+version = "2.0.0"
+authors = [{name = "Siggles"}]
+description = "Skeleton Mages have less chance to cloak each time they appear. Optionally stops them cloaking eventually."
+
+[tool.sdkmod]
+license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
