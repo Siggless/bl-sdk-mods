@@ -6,3 +6,4 @@ description = "Adds a keybind that cycles through grenade mods marked as favouri
 
 [tool.sdkmod]
 license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
+download = "https://github.com/Siggless/bl-sdk-mods/raw/refs/heads/main/GrenadeModQuickSwitcher/GrenadeModQuickSwitcher.sdkmod"
