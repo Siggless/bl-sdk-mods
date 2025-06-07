@@ -1,118 +1,95 @@
-import unrealsdk
-from Mods import ModMenu
-from Mods.ModMenu import EnabledSaveType, ModTypes, Hook, Game, InputEvent
-try:
-    from Mods.Enums import ETextListMoveDir
-except ImportError:
-    import webbrowser
-    webbrowser.open("https://bl-sdk.github.io/requirements/?mod=JumpToLevelChallenges&all")
-    raise ImportError("JumpToLevelChallenges requires at least Enums version 1.0")
+from unrealsdk import find_enum, logging
+from unrealsdk.hooks import Type, Block
+from unrealsdk.unreal import BoundFunction, UObject, WrappedStruct
+from mods_base import EInputEvent, build_mod, hook
+from typing import Any
    
+_KEYS: set = ("E", "XboxTypeS_Start")   # X button is actually used for prestige (who new that existed?), and Right's tooltip icon is naff, so Start
+ETextListMoveDir = find_enum("ETextListMoveDir")
+_MOVE_DIR = ETextListMoveDir.TLMD_MAX   # Using enum MAX to flag our special move
+_currentLevelName = None
 
-class JumpToLevelChallenges(ModMenu.SDKMod):
-    Name: str = "Jump To Level Challenges"
-    Author: str = "Siggles"
-    Description: str = "Adds a keybind to the Challenges menu to jump to the current level's challenges."
-    Version: str = "1.0.0"
-    SupportedGames: Game = Game.BL2 | Game.TPS | Game.AoDK
-    Types: ModTypes = ModTypes.Utility  # One of Utility, Content, Gameplay, Library; bitwise OR'd together
-    SaveEnabledState: EnabledSaveType = EnabledSaveType.LoadOnMainMenu
-
-    keys = ("E", "XboxTypeS_Start")     # X button is actually used for prestige (who new that existed?), and Right's tooltip icon is naff, so Start
-    moveDir = ETextListMoveDir.TLMD_MAX # Using enum MAX to flag our special move
-    currentLevelName = None
-
-
-    @Hook("WillowGame.ChallengesPanelGFxObject.PanelOnInputKey")
-    def PanelOnInputKey(self, caller: unrealsdk.UObject, function: unrealsdk.UFunction, params: unrealsdk.FStruct) -> bool:
-        """
-        Handles input to the challenges menu.
-        We check for our new keybind and scroll the menu if used.
-        """
-        if params.ukey in self.keys and params.uevent==InputEvent.Released:
-            mapName = caller.myWPC.WorldInfo.GetStreamingPersistentMapName()
-            # Get the in-game LevelName for this MapName (e.g. Ice_P -> Three Horns Divide)
-            self.currentLevelName=None
-            for m in caller.myWPC.GetWillowGlobals().GetLevelDependencyList().LevelList:
-                if m.PersistentMap == mapName:
-                    #unrealsdk.Log(f"[{self.Name}] Current map {mapName} has level name {m.LevelName}")
-                    self.currentLevelName = m.LevelName
-                    break
-            if self.currentLevelName == None:
-                unrealsdk.Log(f"[{self.Name}] Can't find map name {self.currentLevelName}")
-                return False
-            
-            caller.ScrollLog(self.moveDir)
-            caller.UpdateChallengeDescription()
-            return False
-        return True
+@hook("WillowGame.ChallengesPanelGFxObject:PanelOnInputKey")
+def PanelOnInputKey(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunction) -> type[Block] | None:
+    """
+    Handles input to the challenges menu.
+    We check for our new keybind and scroll the menu if used.
+    """
+    if args.ukey in _KEYS and args.uevent == EInputEvent.IE_Released:
+        mapName = obj.myWPC.WorldInfo.GetStreamingPersistentMapName()
+        # Get the in-game LevelName for this MapName (e.g. Ice_P -> Three Horns Divide)
+        global _currentLevelName
+        _currentLevelName = None
+        for m in obj.myWPC.GetWillowGlobals().GetLevelDependencyList().LevelList:
+            if m.PersistentMap == mapName:
+                #logging.info(f"[Jump To Level Challenges] Current map {mapName} has level name {m.LevelName}")
+                _currentLevelName = m.LevelName
+                break
+        if _currentLevelName == None:
+            logging.info(f"[Jump To Level Challenges] Can't find map name {_currentLevelName}")
+            return Block
         
-
-    @Hook("WillowGame.GFxTextListContainer.Move")
-    def Move(self, caller: unrealsdk.UObject, function: unrealsdk.UFunction, params: unrealsdk.FStruct) -> bool:
-        """
-        Called to move to a new item in a TextList.
-        params.Dir is the move type from ETextListMoveDir.
-        We add in our option for moving to a certain map separator.
-        """
-        if params.Dir == self.moveDir and caller.ParentMovie.Name == "StatusMenuExGFxMovie":
-            
-            # Get the index of the current map name in CategoryLabelsArray
-            try:
-                categoryIndex = list(caller.CategoryLabelsArray).index(self.currentLevelName)
-            except ValueError:
-                caller.ParentMovie.PlayUISound('ResultFailure')
-                unrealsdk.Log(f"[{self.Name}] Can't find level name {self.currentLevelName} in challenge list")
-                return
-            
-            # Loop through the TextEntries list and get the index of the item matching CategoryLabelsArray
-            lastIndex = len(list(caller.TextEntries))-1
-            newStartIndex = -1
-            newEndIndex = lastIndex
-            i=0
-            for entry in caller.TextEntries:
-                if entry.Kind == 1:
-                    if entry.ArrayIdx == categoryIndex:
-                        # Might need to filter out undiscovered challenges too
-                        newStartIndex = i + 1
-                    elif entry.ArrayIdx == categoryIndex + 1:
-                        newEndIndex = i - 1
-                        break
-                i = i+1
-            newStartIndex = min(max(newStartIndex, 0),lastIndex) # Clamp to top and bottom of list
-            newEndIndex = min(max(newEndIndex, 0),lastIndex)
-            
-            movingUp = newStartIndex<caller.HighlightedEntry
-            caller.HighlightedEntry = newStartIndex
-            caller.RepositionToFitIndex(newStartIndex - 1 if movingUp else newEndIndex)   # Make sure that we show the full category regardless of move direction
-            caller.PositionHighlightBar()
-            return False
-        
-        return True
+        obj.ScrollLog(_MOVE_DIR)
+        obj.UpdateChallengeDescription()
+        return Block
+    return
     
 
-    @Hook("WillowGame.ChallengesPanelGFxObject.UpdateTooltips")
-    def UpdateTooltips(self, caller: unrealsdk.UObject, function: unrealsdk.UFunction, params: unrealsdk.FStruct) -> bool:
-        """
-        We use this to append the tooltip for our keybind
-        """
-        # Do the hooked function first to get the new tooltip
-        unrealsdk.DoInjectedCallNext()
-        caller.UpdateTooltips(caller, function, params)
-        
-        # Now append our button string
-        tooltipString = caller.OwningMovie.GetVariableString("tooltips.tooltips.htmlText")
-        if caller.MyWPC.PlayerInput.bUsingGamepad:
-            tooltipString = tooltipString + f"    <StringAliasMap:{self.keys[1]}> Current Map"
-        else:
-            tooltipString = tooltipString + f"    [{self.keys[0]}] Current Map"  
-        caller.OwningMovie.SetVariableString("tooltips.tooltips.htmlText", caller.Outer.ResolveDataStoreMarkup(tooltipString))
-        
-        return False
+@hook("WillowGame.GFxTextListContainer:Move")
+def Move(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunction) -> type[Block] | None:
+    """
+    Called to move to a new item in a TextList.
+    __args.Dir is the move type from ETextListMoveDir.
+    We add in our option for moving to a certain map separator.
+    """
+    if not (args.Dir == _MOVE_DIR and obj.ParentMovie.Class.Name == "StatusMenuExGFxMovie"):
+        return
 
-### End class JumpToLevelChallenges
+    # Get the index of the current map name in CategoryLabelsArray
+    try:
+        categoryIndex = list(obj.CategoryLabelsArray).index(_currentLevelName)
+    except ValueError:
+        obj.ParentMovie.PlayUISound('ResultFailure')
+        logging.info(f"[Jump To Level Challenges] Can't find level name {_currentLevelName} in challenge list")
+        return
+    
+    # Loop through the TextEntries list and get the index of the item matching CategoryLabelsArray
+    lastIndex = len(list(obj.TextEntries)) - 1
+    newStartIndex = -1
+    newEndIndex = lastIndex
+    i = 0
+    for entry in obj.TextEntries:
+        if entry.Kind == 1:
+            if entry.ArrayIdx == categoryIndex:
+                # Might need to filter out undiscovered challenges too
+                newStartIndex = i + 1
+            elif entry.ArrayIdx == categoryIndex + 1:
+                newEndIndex = i - 1
+                break
+        i = i + 1
+    newStartIndex = min(max(newStartIndex, 0), lastIndex)   # Clamp to top and bottom of list
+    newEndIndex = min(max(newEndIndex, 0), lastIndex)
+    
+    movingUp = newStartIndex < obj.HighlightedEntry
+    obj.HighlightedEntry = newStartIndex
+    obj.RepositionToFitIndex(newStartIndex - 1 if movingUp else newEndIndex)   # Make sure that we show the full category regardless of move direction
+    obj.PositionHighlightBar()
+    return Block
+    
 
+@hook("WillowGame.ChallengesPanelGFxObject:UpdateTooltips", Type.POST)
+def UpdateTooltips(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunction) -> None:
+    """
+    We use this to append the tooltip for our keybind
+    POST hook so after it's been updated with the actual args.
+    """
+    tooltipString = obj.OwningMovie.GetVariableString("tooltips.tooltips.htmlText")
+    if obj.MyWPC.PlayerInput.bUsingGamepad:
+        tooltipString = tooltipString + f"    <StringAliasMap:{_KEYS[1]}> Current Level"
+    else:
+        tooltipString = tooltipString + f"    [{_KEYS[0]}] Current Level"  
+    obj.OwningMovie.SetVariableString("tooltips.tooltips.htmlText", obj.Outer.ResolveDataStoreMarkup(tooltipString))
+    
+    return
 
-instance = JumpToLevelChallenges()
-
-ModMenu.RegisterMod(instance)
+build_mod(hooks=[PanelOnInputKey, Move, UpdateTooltips])
