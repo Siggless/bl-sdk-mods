@@ -6,4 +6,4 @@ description = "Adds a keybind to the Challenges menu to jump to the current leve
 
 [tool.sdkmod]
 license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
-#supported_games = ["BL2", "TPS", "AoDK"]
+download = "https://github.com/Siggless/bl-sdk-mods/raw/refs/heads/main/JumpToLevelChallenges/JumpToLevelChallenges.sdkmod"
