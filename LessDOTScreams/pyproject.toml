@@ -10,3 +10,4 @@ To customise for certain characters, consider <font color='#00ffe8'>Customizable
 
 [tool.sdkmod]
 license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
+download = "https://github.com/Siggless/bl-sdk-mods/raw/refs/heads/main/LessDOTScreams/LessDOTScreams.sdkmod"
