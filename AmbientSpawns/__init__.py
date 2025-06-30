@@ -589,7 +589,7 @@ class AmbientSpawns(ModMenu.SDKMod):
                     validWeights.append(weight)
         
         # Spawn some stuff
-        if validDens:
+        if validDens and validWeights:
             chosenDens = random.choices(validDens, validWeights, k=1)
             for denInfo in chosenDens:
                 self.GenerateSpawnListFromDen(PC, denInfo)
@@ -632,34 +632,35 @@ class AmbientSpawns(ModMenu.SDKMod):
                 
             if len(validCustomSpawns) > 0:
                 customSpawnWeights = [custom_spawns.BadassTagWeights[x.tag] for x in validCustomSpawns]
-                customSpawn: custom_spawns.CustomSpawn = random.choices(validCustomSpawns, customSpawnWeights)[0]
-                
-                if customSpawn:
-                    exclusiveValidPoints = []   # Try to pick a unique spawn point until they've all been used
-                    for (factory, spawnPointDef, delay) in customSpawn.GetNewFactoryList(den, gameStage, megaMix=self.megaMixActive):
-                        if not spawnPointDef:
-                            if len(exclusiveValidPoints) == 0:
-                                exclusiveValidPoints = [*validPoints]
-                            chosenSpawnPoint = random.choice(exclusiveValidPoints)
-                            exclusiveValidPoints.remove(chosenSpawnPoint)
-                            self.currentSpawnList.append((factory, chosenSpawnPoint, delay))
-                        else:
-                            # Make sure we're choosing only spawnPoints that match this custom def, if defined
-                            customValidPoints = [x for x in validPoints
-                                if ((not x.PointDef) and spawnPointDef == "None")
-                                or (x.PointDef.Name == customSpawn.spawnPointDef)
-                            ]
-                            if len(exclusiveValidPoints) == 0:  # Assuming all spawns in a CustomSpawn can use the same PointDefs!
-                                exclusiveValidPoints = [*customValidPoints]
-                            if len(exclusiveValidPoints) > 0:
+                if sum(customSpawnWeights) > 0:
+                    customSpawn: custom_spawns.CustomSpawn = random.choices(validCustomSpawns, customSpawnWeights)[0]
+                    
+                    if customSpawn:
+                        exclusiveValidPoints = []   # Try to pick a unique spawn point until they've all been used
+                        for (factory, spawnPointDef, delay) in customSpawn.GetNewFactoryList(den, gameStage, megaMix=self.megaMixActive):
+                            if not spawnPointDef:
+                                if len(exclusiveValidPoints) == 0:
+                                    exclusiveValidPoints = [*validPoints]
                                 chosenSpawnPoint = random.choice(exclusiveValidPoints)
-                                #Log(chosenSpawnPoint)
                                 exclusiveValidPoints.remove(chosenSpawnPoint)
                                 self.currentSpawnList.append((factory, chosenSpawnPoint, delay))
                             else:
-                                # Oh no we can't do all CustomSpawns from this den (player must be looking at all None spawns we can use)
-                                #Log(f"Oh no can't actually find a spawn point {spawnPointDef} for {customSpawn.name}, you must be looking at a blank point!")
-                                continue
+                                # Make sure we're choosing only spawnPoints that match this custom def, if defined
+                                customValidPoints = [x for x in validPoints
+                                    if ((not x.PointDef) and spawnPointDef == "None")
+                                    or (x.PointDef.Name == customSpawn.spawnPointDef)
+                                ]
+                                if len(exclusiveValidPoints) == 0:  # Assuming all spawns in a CustomSpawn can use the same PointDefs!
+                                    exclusiveValidPoints = [*customValidPoints]
+                                if len(exclusiveValidPoints) > 0:
+                                    chosenSpawnPoint = random.choice(exclusiveValidPoints)
+                                    #Log(chosenSpawnPoint)
+                                    exclusiveValidPoints.remove(chosenSpawnPoint)
+                                    self.currentSpawnList.append((factory, chosenSpawnPoint, delay))
+                                else:
+                                    # Oh no we can't do all CustomSpawns from this den (player must be looking at all None spawns we can use)
+                                    #Log(f"Oh no can't actually find a spawn point {spawnPointDef} for {customSpawn.name}, you must be looking at a blank point!")
+                                    continue
                 
         if len(self.currentSpawnList) == 0 and denInfo.baseSpawn:
             # Default to this den's usual spawn
