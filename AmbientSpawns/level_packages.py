@@ -257,12 +257,12 @@ combat_packages_by_DLC = {
         "Caverns_P",                    # Creepers
         "Cove_Dynamic",                 # MidgetBadass
         "Dam_Dynamic",                  # Marauder
-        "Ice_P"                         # Vehicle textures, bone/horn textures
+        "Ice_P",                        # Vehicle textures, bone/horn textures
         "Ice_Dynamic",                  # Nomad Pyro
         "Fridge_Dynamic",               # Laney
         "Frost_Dynamic",                # Mr Mercy, Bad Maw, Nomad Badass
-        #"Grass_Lynchwood_P"             # Cowboy hat texture
-        #"Grass_Lynchwood_Dynamic",      # Marshals, Deputy, Sheriff
+        "Grass_Lynchwood_P",            # Cowboy hat texture
+        "Grass_Lynchwood_Dynamic",      # Marshals, Deputy, Sheriff
         # "HyperionCity_Dynamic",         # ProbeMix_Badass, Foreman
         "SouthpawFactory_Dynamic",      # Assassins
         "TundraTrain_Dynamic",          # Wilhelm
