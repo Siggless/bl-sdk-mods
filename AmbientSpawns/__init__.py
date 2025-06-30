@@ -172,7 +172,7 @@ FACTORY_EXCLUDED_FROM_ALLEGIANCE_CHANGE = [
 ]
 """Enemies whose allegiance is important e.g. Wilhelm needs to match his surveyors"""
 
-MIN_TIME_DURATION = 20
+MIN_TIME_DURATION = 10
 
 
 class SpawnPool(enum.IntEnum):
@@ -222,7 +222,7 @@ class AmbientSpawns(ModMenu.SDKMod):
         "and also whether custom groups of enemies can spawn.\n\n" \
         "If enabled, enemies from all levels are loaded upon reaching the main menu, causing a delay."
     Author: str = "Siggles"
-    Version: str = "1.2.0"
+    Version: str = "1.3.0"
     SaveEnabledState: ModMenu.EnabledSaveType = ModMenu.EnabledSaveType.LoadWithSettings
 
     Types: ModMenu.ModTypes = ModMenu.ModTypes.Gameplay
@@ -326,6 +326,33 @@ class AmbientSpawns(ModMenu.SDKMod):
             Description="Whether enemies can substituted for similar variants, e.g. Hyperion loaders with Torgue loaders.",
             StartingValue=False,
         )
+         
+        badass_tags = [
+            ("CHUMP", "Chump (e.g. Marauders, Psychos, Midgets, GUN loaders)"),
+            ("MEDIUM", "Medium (e.g. Bruisers, Goliaths, WAR Loaders)"),
+            ("BADASS", "Badass (e.g. Badass Marauders, Badass Loaders)"),
+            ("ULTIMATE_BADASS", "Ultimate Badass (e.g. Super Badass Loaders, Badass Psychos)"),
+            ("MINIBOSS", "Mini-boss"),
+            ("BOSS", "Boss"),
+        ]
+        
+        # Sliders for spawn tag weights
+        self.badassWeightSliders = {}
+        weight_options = []
+
+        for tag_name, description_suffix in badass_tags:
+            slider = ModMenu.Options.Slider(
+                Caption=f"{tag_name.replace('_', ' ').title()} Weight",
+                Description=f"{description_suffix}. The relative chance for this enemy type to be chosen for a spawn.",
+                StartingValue=custom_spawns.BadassTagWeights.get(getattr(custom_spawns.Tag, tag_name), 10),
+                MinValue=0,
+                MaxValue=100,
+                Increment=1
+            )
+            # Assuming custom_spawns.Tag has attributes corresponding to the tag_name strings
+            self.badassWeightSliders[getattr(custom_spawns.Tag, tag_name)] = slider
+            weight_options.append(slider)
+        
         self.Options = [
             self.frequencySlider,
             self.combatSwitch,
@@ -336,6 +363,7 @@ class AmbientSpawns(ModMenu.SDKMod):
             self.customSpawnSlider,
             self.spawnPoolSpinner,
             self.megaMixSwitch,
+            *weight_options
         ]
     
     def ModOptionChanged(self, option: ModMenu.Options.Base, new_value) -> None:
@@ -354,6 +382,13 @@ class AmbientSpawns(ModMenu.SDKMod):
                 self.pool >= SpawnPool.DLC and SpawnPool[new_value] < SpawnPool.DLC):
                 self.ShowPackageLoadingHelp()
             self.pool = SpawnPool[new_value]
+            
+        # Handle changes to the badass weight sliders
+        for tag, slider in self.badassWeightSliders.items():
+            if option == slider:
+                # Use the correct dictionary 'BadassTagWeights'
+                custom_spawns.BadassTagWeights[tag] = new_value
+                return
     
     packageLoadingHelpSeen: bool = False
     

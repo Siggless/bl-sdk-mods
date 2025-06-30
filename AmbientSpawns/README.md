@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.0
++ Added sliders for enemy rarity (e.g. badass). They take effect immediately, so no need to quit to main menu.
++ changed minimum spawn time to 10 from 20.
+
 ## v1.2.0
 + TPS support.
 + Spawns patrol by default - added Target Player option.
