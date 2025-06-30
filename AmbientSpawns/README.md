@@ -1,6 +1,11 @@
 # Changelog
 
-## v1.3.0
+## v1.3.1
++ Fixed broken bone texture for real this time.
++ Reinstated Deputy Winger.
++ Fixed errors when all rarity sliders were set to 0.
+
+## v1.3.0 (Thanks AldebaraanMKII)
 + Added sliders for enemy rarity (e.g. badass). They take effect immediately, so no need to quit to main menu.
 + changed minimum spawn time to 10 from 20.
 
