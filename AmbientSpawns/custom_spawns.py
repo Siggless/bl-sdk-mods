@@ -484,11 +484,11 @@ customList: Dict[ModMenu.Game, Dict[str, List[Spawn]]] = {
                     CustomSpawn("Ass Reeth",Tag.MINIBOSS,   popDef="GD_Population_Psycho.Population.Unique.PopDef_Assassin3"),
                     CustomSpawn("Ass Rouf",Tag.MINIBOSS,    popDef="GD_Population_Rat.Population.Unique.PopDef_Assassin4"),
                 ], map_blacklist=["southpawfactory_p"]),
-                # MultiSpawn("Deputy Winger",Tag.MINIBOSS,customSpawnList=[
-                #     CustomSpawn("Deputy",Tag.MINIBOSS,      popDef="GD_Population_Sheriff.Population.Pop_Deputy"),
-                #     CustomSpawn("Marshals",Tag.CHUMP,[4,5], popDef="GD_Population_Sheriff.Population.Pop_Marshal"),
-                # ], map_blacklist=["grass_lynchwood_p"]),
-            ], customSpawnWeights=[2,2,2,1]),
+                MultiSpawn("Deputy Winger",Tag.MINIBOSS,customSpawnList=[
+                    CustomSpawn("Deputy",Tag.MINIBOSS,      popDef="GD_Population_Sheriff.Population.Pop_Deputy"),
+                    CustomSpawn("Marshals",Tag.CHUMP,[4,5], popDef="GD_Population_Sheriff.Population.Pop_Marshal"),
+                ], map_blacklist=["grass_lynchwood_p"]),
+            ], customSpawnWeights=[2,2,2,1,2]),
 
             # Rats
             MultiSpawn("Mine Rats",Tag.CHUMP,customSpawnList=[
