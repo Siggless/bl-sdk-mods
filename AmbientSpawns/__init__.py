@@ -222,7 +222,7 @@ class AmbientSpawns(ModMenu.SDKMod):
         "and also whether custom groups of enemies can spawn.\n\n" \
         "If enabled, enemies from all levels are loaded upon reaching the main menu, causing a delay."
     Author: str = "Siggles"
-    Version: str = "1.3.0"
+    Version: str = "1.3.1"
     SaveEnabledState: ModMenu.EnabledSaveType = ModMenu.EnabledSaveType.LoadWithSettings
 
     Types: ModMenu.ModTypes = ModMenu.ModTypes.Gameplay
