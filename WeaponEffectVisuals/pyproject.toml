@@ -1,0 +1,10 @@
+[project]
+name = "Weapon Effect Visuals"
+version = "1.0"
+authors = [{name = "Siggles"}]
+description = """
+Adjusts a weapon's material whilst its random skill is active (Ogre, Grog Nozzle).
+"""
+
+[tool.sdkmod]
+license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
