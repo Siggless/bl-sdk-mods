@@ -1,0 +1,11 @@
+[project]
+name = "Controller Binds"
+version = "1.0"
+authors = [{name = "Siggles"}]
+description = """Adds controller combo binds for any mod keybinds.
+\n Also adds a mod menu bind, and fixes the controller rebind menu in BL2.
+\n Note this disables the game's existing controller Hold binds.
+"""
+
+[tool.sdkmod]
+license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
