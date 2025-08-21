@@ -3,7 +3,7 @@ name = "Weapon Effect Visuals"
 version = "1.0"
 authors = [{name = "Siggles"}]
 description = """
-Adjusts a weapon's material whilst its random skill is active (Ogre, Grog Nozzle).
+Adjusts a weapon's material whilst its random skill is active (e.g. Ogre, Grog Nozzle).
 """
 
 [tool.sdkmod]
