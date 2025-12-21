@@ -2,12 +2,14 @@ from unrealsdk import find_enum, logging
 from unrealsdk.hooks import Type, Block
 from unrealsdk.unreal import BoundFunction, UObject, WrappedStruct
 from mods_base import EInputEvent, build_mod, hook
+from mods_base.options import BoolOption
 from typing import Any
    
-_KEYS: set = ("E", "XboxTypeS_Start")   # X button is actually used for prestige (who new that existed?), and Right's tooltip icon is naff, so Start
+_KEYS: set = ("L", "XboxTypeS_Start")   # E / X button is actually used for prestige (who new that existed?), and Right's tooltip icon is naff, so Start
 ETextListMoveDir = find_enum("ETextListMoveDir")
 _MOVE_DIR = ETextListMoveDir.TLMD_MAX   # Using enum MAX to flag our special move
 _currentLevelName = None
+
 
 @hook("WillowGame.ChallengesPanelGFxObject:PanelOnInputKey")
 def PanelOnInputKey(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunction) -> type[Block] | None:
@@ -91,5 +93,30 @@ def UpdateTooltips(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunct
     obj.OwningMovie.SetVariableString("tooltips.tooltips.htmlText", obj.Outer.ResolveDataStoreMarkup(tooltipString))
     
     return
+
+
+
+@BoolOption("Hide Completed Challenges", False, description="Whether completed challenges are hidden in the challenges list.")
+def RemoveOption(option, newValue):
+    if newValue:
+        UpdateListOfChallenges.enable()
+    else:
+        UpdateListOfChallenges.disable()
+
+
+#@hook("WillowGame.ChallengesPanelGFxObject:UpdateListOfChallenges", Type.POST)
+@hook("WillowGame.ChallengesPanelGFxObject:UpdateChallengeTextList", Type.PRE)
+def UpdateListOfChallenges(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunction) -> None:
+    """
+    The hooked function is only called after the list has its entries added. Remove any completed challenges.
+    """
+    textList = obj.ChallengeLogTextList
+    for x in reversed(textList.OneTimeArray):
+        challengeDef = x.Data
+        _ = 0
+        ret = obj.MyWPC.GetChallengeCurrentLevelProgress(challengeDef, _, _, _)
+        if ret[0]:
+            textList.RemoveObject(x.Data)
+
 
 build_mod(hooks=[PanelOnInputKey, Move, UpdateTooltips])

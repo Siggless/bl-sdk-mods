@@ -1,8 +1,8 @@
 [project]
 name = "Jump To Level Challenges"
-version = "2.0.0"
+version = "2.1.0"
 authors = [{name = "Siggles"}]
-description = "Adds a keybind to the Challenges menu to jump to the current level's challenges."
+description = "Adds a keybind to the Challenges menu to jump to the current level's challenges, and an option to hide completed challenges."
 
 [tool.sdkmod]
 license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
