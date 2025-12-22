@@ -1,0 +1,14 @@
+[project]
+name = "Alt Use Catch-a-Ride"
+version = "2.0.0"
+authors = [{name = "Siggles"}]
+description = """
+Adds alt use binds to Catch-a-Ride stations, to instantly deploy a vehicle.
+\n
+Options to teleport to vehicle on spawn, choose a vehicle family (including DLC vehicles), and choose the vehicle weapon to use for each family.
+"""
+
+[tool.sdkmod]
+license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
+supported_games = ["BL2", "TPS", "AoDK"]
+download = "https://github.com/Siggless/bl-sdk-mods/raw/refs/heads/main/AltUseCatchARide/AltUseCatchARide.sdkmod"
