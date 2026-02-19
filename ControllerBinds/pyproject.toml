@@ -2,9 +2,9 @@
 name = "Controller Binds"
 version = "1.0.0"
 authors = [{name = "Siggles"}]
-description = """Adds controller combo binds for any mod keybinds, adds mod menu bind, and fixes the controller rebind menu in BL2.
+description = """Adds controller combo binds for any mod keybinds, plus a menu button for the mod menu.
 \n
-All controller binds are set in <i>this<\i> mod's keybind options.
+All controller binds are set in <font color='#00ffe8'>this mod's</font> keybind options.
 """
 
 [tool.sdkmod]

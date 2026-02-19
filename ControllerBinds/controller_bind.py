@@ -1,8 +1,9 @@
 from inspect import signature
-from typing import List, Mapping, Optional, Sequence
+from typing import List, Optional, Sequence
 from mods_base import EInputEvent
 from mods_base.keybinds import KeybindCallback_NoArgs, KeybindCallback_Event, KeybindType
 from mods_base.options import KeybindOption
+from unrealsdk.logging import error
 
 class ControllerBind():
     """
@@ -15,8 +16,15 @@ class ControllerBind():
         self.buttonHeld: str | None = None
         self.buttonCombo: List[str] = []
     
+    def Clear(self):
+        self.buttonHeld = None
+        self.buttonCombo = []
+    
     def IsSet(self) -> bool:
         return len(self.buttonCombo) > 0
+    
+    def IsNormalBind(self) -> bool:
+        return self.buttonHeld is None
     
     def GetCallback(self) -> KeybindCallback_Event | KeybindCallback_NoArgs | None:
         if not self.callback:
@@ -27,7 +35,7 @@ class ControllerBind():
         """Checks the keybind event and fires the relevant callback event with proper args.
         For the event type, we need to force it to the relevant event, not what the controller mod gives"""
         if not self.callback:
-            print(f"No callback for keybind {self.keybind.identifier}")
+            error(f"No callback for keybind {self.keybind.identifier}")
             return
         try:
             if len(signature(self.callback).parameters) == 0:
@@ -39,7 +47,9 @@ class ControllerBind():
                     self.callback(self.keybind.event_filter) # type: ignore
                 else:
                     self.callback(EInputEvent.IE_Released) # type: ignore
-        except Exception:
+        except Exception as e:
+            error(f"ControllerBind callback for {self.keybind.display_name} threw an error:")
+            error(e)
             pass    # If a bind throws an error then we don't want it to affect other binds in the combo
     
     def ToKeybindOption(self) -> KeybindOption:
@@ -62,8 +72,8 @@ class ControllerBind():
         self.from_string(newValue)
 
     def __str__(self) -> str:
-        return ControllerBind.bind_string(self.buttonHeld, self.buttonCombo)
-    
+        return self.bind_string()
+
     @staticmethod
     def button_string(key: str | None) -> str:
         """Returns a nice string for the button name."""
@@ -73,29 +83,24 @@ class ControllerBind():
             return key.split('_')[-1]
         else:
             return key.removeprefix("JOY ")
-        
-    @staticmethod
-    def bind_string(buttonHeld: str | None, buttonCombo: List[str]) -> str:
-        """Returns a nice string for the controller bind."""
-        if not buttonHeld:
-            if len(buttonCombo) == 1:
-                return ControllerBind.button_string(buttonCombo[0])
+
+    def bind_string(self) -> str:
+        """Returns a nice string for the controller bind menu."""
+        if not self.buttonHeld:
+            if len(self.buttonCombo) == 1:
+                return ControllerBind.button_string(self.buttonCombo[0])
             else:
                 return "None"
-        return f"{ControllerBind.button_string(buttonHeld)} + [{','.join(ControllerBind.button_string(b) for b in buttonCombo)}]"
-
-    
-    
-    @staticmethod
-    def to_string(buttonHeld, buttonCombo) -> str:
+        return f"{ControllerBind.button_string(self.buttonHeld)} + [{','.join(ControllerBind.button_string(b) for b in self.buttonCombo)}]"
+      
+    def to_string(self) -> str:
         """
         String used for encoding the bind
         Yes I'm doing this to pass through the KeybindOption. No I'm not sorry.
         """
-        return f"{buttonHeld} + [{','.join(b for b in buttonCombo)}]"
+        return f"{self.buttonHeld} + [{','.join(b for b in self.buttonCombo)}]"
       
     def from_string(self, input:str) -> None:
-        print(f"from_string {input}")
         self.buttonHeld = None
         self.buttonCombo = []
         

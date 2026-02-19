@@ -1,9 +1,8 @@
 from collections.abc import Callable, Iterator, Sequence
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import Any, Dict, List
 from mods_base import Mod
 from mods_base.mod_list import get_ordered_mod_list
-from mods_base.options import BaseOption, GroupedOption, HiddenOption, KeybindOption, NestedOption
-from unrealsdk.logging import misc
+from mods_base.options import BaseOption, GroupedOption, HiddenOption, KeybindOption
 
 from .controller_bind import ControllerBind
 from . import game_states
@@ -25,7 +24,7 @@ class RebindMod(Mod):
         + If mod is enabled, creates the linked ControllerBinds.
         We should never remove from the save options list, in case mods are unloaded, just add to it.
         """
-        misc("RefreshStart")
+
         settingBindsByMod:Dict[str, Dict[str, Dict[str, Any]]] = self.bindsOption.value
         allBindsByMod:Dict[str, List[ControllerBind]] = {}
         activeBindsByMod:Dict[str, List[ControllerBind]] = {}
@@ -57,9 +56,9 @@ class RebindMod(Mod):
         self.bindsOption.value = settingBindsByMod
         self.bindsOption.save()
         self.allBindsByMod = allBindsByMod
-        for mod in get_ordered_mod_list():
-            if mod.name in activeBindsByMod:
-                misc(f"{mod.name}:{[str(x) for x in activeBindsByMod[mod.name]]}")
+        # for mod in get_ordered_mod_list():
+        #     if mod.name in activeBindsByMod:
+        #         misc(f"{mod.name}:{[str(x) for x in activeBindsByMod[mod.name]]}")
     
     
     def clear_all_binds(self) -> None:

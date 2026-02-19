@@ -1,21 +1,28 @@
-from typing import Any, Dict, List
-from mods_base import build_mod, get_pc, hook, keybind, mod_list, EInputEvent, ENGINE
+from typing import Any
+from mods_base import build_mod, hook
 from unrealsdk.hooks import Type, Block
-from unrealsdk.logging import misc
 from unrealsdk.unreal import BoundFunction, UObject, WrappedStruct
 
-from .controller_bind import ControllerBind
 from .menu_mods import *
-from .rebind_mod import RebindMod
 from .menu_mod_options import *
+from .rebind_mod import RebindMod
 
+# Only assuming AoDK has the same issue as BL2
+if Game.get_current() == Game.BL2 or Game.get_current() == Game.AoDK:
+    from .menu_controller import *
+
+
+"""
+We need to refresh our binds to match the Keybinds for any enabled mods.
+A) When the game starts, after all other mods are loaded.
+B) Whenever a mod is enabled/disabled, as we only store binds for enabled mods.
+"""
 
 @hook("WillowGame.FrontendGFxMovie:Start", Type.POST_UNCONDITIONAL)
+@hook("WillowGame.WillowPlayerController:ApplyControllerPreset")
 def MainMenu(obj: UObject, args: WrappedStruct, ret: Any, func: BoundFunction) -> None:
-    #mod.load_settings() # Not all mods may be loaded when we build initially
-    mod.refresh_binds()  # TODO also call this whenever a mod's keybinds change (???? really if they are still the same object, should be OK)
-    if not get_pc().WorldInfo.bIsMenuLevel:
-        return
-    # TODO this needs to happen on main menu or something - currently this only gets mods that are enabled right on bootup!
+    #print("Refreshing binds!")
+    mod.refresh_binds()
+
 
 mod = build_mod(cls=RebindMod)

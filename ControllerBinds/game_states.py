@@ -6,7 +6,7 @@ from unrealsdk.logging import misc
 from unrealsdk.unreal import BoundFunction, UObject, WrappedStruct
 
 from .controller_bind import ControllerBind
-from .game_commands import _controller_commands
+import ControllerBinds.game_commands as commands
 
 controllerBindsByMod: Dict[str, List[ControllerBind]] = {}
 
@@ -16,6 +16,8 @@ I hook into WillowUIInteraction.InputKey just like the KeybindManager, but check
 Note there is an issue, where if a mod bind opens a GFxMovie (e.g. DialogOption), this breaks the
  sequence and still fires the normal behavior, and prevents the next action from that key.
  I've bodged a fix for this by just resetting the inputs when the GFxMovie is closed.
+ This is because input to these GFxMovies does not pass through our WillowUIInteraction.InputKey hook,
+ so the release of the heldKey is missed here.
 """
 
 class InputState():
@@ -64,7 +66,7 @@ class Idle(InputState):
         # If a controller bind is a single key then that can still be the relevant input event
         # if event is not EInputEvent.IE_Pressed:
         #     return (False, None, None)
-        misc(f"Idle pressed {key}")
+
         for binds in controllerBindsByMod.values():
             for bind in binds:
                 if not bind.IsSet():
@@ -72,7 +74,7 @@ class Idle(InputState):
                 if bind.buttonHeld == key:
                     if bind.buttonCombo and event is EInputEvent.IE_Pressed:
                         return (True, Held, key)
-                elif not bind.buttonHeld and bind.buttonCombo[0] == key:
+                elif bind.IsNormalBind() and bind.buttonCombo[0] == key:
                         bind.Fire(event)
                         return (True, Idle, key)
                         
@@ -80,11 +82,11 @@ class Idle(InputState):
 
     
     def BlockBehavior(self, command_key: str) -> type[Block] | None:
-        if not self.blockKey or self.blockKey not in _controller_commands:
+        if not self.blockKey or self.blockKey not in commands.controller_commands:
             return
-        if command_key in _controller_commands[self.blockKey]:
+        if command_key in commands.controller_commands[self.blockKey]:
             # This should be the command that consumed modifier key would trigger upon release
-            misc(f"Blocked {self.blockKey} via Idle")
+            #misc(f"Blocked {self.blockKey} via Idle")
             self.blockKey = None
             return Block
     
@@ -108,15 +110,13 @@ class Held(InputState):
             for bind in validBinds:
                 thisModBinds[bind] = [*bind.buttonCombo]
             # Then each time we recieve a new input, pop any non-matching keybind from that list
-        misc(self.validBindsByMod)
+        #misc(self.validBindsByMod)
     
     
     def ReceiveInput(self, key: str, event: EInputEvent) -> Tuple[bool, type[InputState] | None, str | None]:
         if key == self.heldButton and event == EInputEvent.IE_Released:
-            misc(f"Released held key {key}")
             return (True, Idle, self.heldButton if self.heldButtonConsumed else None)
         
-        misc(f"Held with {key} {event}")
         if event == EInputEvent.IE_Repeat:
             return (True, None, None)
         ALWAYS_BLOCK_HELD_KEY_EVEN_IF_NOT_CONSUMED = True
@@ -135,15 +135,13 @@ class Held(InputState):
             for bind, combo in modBinds.items():
                 if not combo or combo[0] != key:
                     # This bind is no longer valid for the input combo
-                    misc(f"invalid bind {bind.buttonCombo}")
                     invalidBinds.append(bind)
                     continue
-                misc(f"Still valid bind {bind.buttonHeld} + {combo}")
+
                 combo.pop(0)
                 if not combo:
                     # This bind combo has been completed! Fire it
                     self.heldButtonConsumed = True
-                    misc("Firing this bind!")
                     MULTIPLE_BIND_OPTION = True
                     if MULTIPLE_BIND_OPTION:
                         if modName not in firedBindsByModName:
@@ -165,7 +163,6 @@ class Held(InputState):
         for modName, firedBinds in firedBindsByModName.items():
             for bind in firedBinds:
                 self.validBindsByMod[modName][bind] = [*bind.buttonCombo]
-                misc(f"... and resetting this bind to {bind.buttonCombo}")
         
         return (True, None, None)
     
@@ -179,21 +176,20 @@ class Held(InputState):
     
     def GFxMovieClosed(self, movieDef = None) -> Tuple[type[InputState] | None, str | None]:
         if self.gfxMovie and self.gfxMovie is movieDef:
-            print("Closed our movie!")
             get_pc().PlayerInput.ReleasePressedButtons()
             return (Idle, None)
         return (None, None)
     
     
     def BlockBehavior(self, command_key: str) -> type[Block] | None:
-        if self.lastComboButton and command_key in _controller_commands[self.lastComboButton]:
+        if self.lastComboButton and command_key in commands.controller_commands[self.lastComboButton]:
             # This is a command that the modded controller key would trigger (there might be multiple that have to be skipped here)
-            misc(f"Blocked {self.lastComboButton} via Held")
+            #misc(f"Blocked {self.lastComboButton} via Held")
             return Block
         
-        if command_key in _controller_commands[self.heldButton]:
+        if command_key in commands.controller_commands[self.heldButton]:
             # This should be the command that the modifier key would trigger
-            misc(f"Blocked {self.heldButton} via Held")
+            #misc(f"Blocked {self.heldButton} via Held")
             return Block
     
     
@@ -204,7 +200,7 @@ def ChangeToState(newState: type[InputState], key: str | None):
     currentState.Exit()
     currentState = newState()
     currentState.Enter(key)
-    misc(f"Changed to state {str(newState)}") 
+    #misc(f"Changed to state {str(newState)}") 
 
 
 @hook("WillowGame.WillowUIInteraction:InputKey", immediately_enable=True)
@@ -231,7 +227,6 @@ def gfx_movie_opened(
     _3: Any,
     _4: BoundFunction,
 ) -> type[Block] | None:
-    misc("PlayMovie")
     (newState, newStateKey) = currentState.GFxMovieOpened(args.MovieDefinition)
     if newState:
         ChangeToState(newState, newStateKey)
@@ -244,7 +239,6 @@ def gfx_movie_closed(
     _3: Any,
     _4: BoundFunction,
 ) -> None:
-    misc("CloseMovie")
     (newState, newStateKey) = currentState.GFxMovieClosed(args.Movie.MyDefinition)
     if newState:
         ChangeToState(newState, newStateKey)
@@ -255,7 +249,6 @@ def InputCommand(obj: UObject, args: WrappedStruct, _3: Any, _4: BoundFunction,)
     """
     This function fires whenever a Behavior_ClientConsoleCommand is called (from an InputAction)
     I use this to prevent input button actions from firing when a modded bind has been used for this button e.g. InputActionDefinition GD_Input.Actions.InputAction_Jump
-    Note for some reason calling unrealsdk.Log here causes other mod hooks like PickupAsTrash's NextWeapon() to break.
     """
     return currentState.BlockBehavior(obj.Command)
 
@@ -265,12 +258,12 @@ def InputPlayerBehavior(obj: UObject, args: WrappedStruct, _3: Any, _4: BoundFun
     This function fires whenever a BehaviorBase class that is hooked from out dictionary is called (from an InputAction)
     I use this to prevent input button actions from firing when a modded bind has been used for this button e.g. InputActionDefinition GD_Input.Actions.InputAction_ThrowGrenade
     """
-    print("blockBehavior")
     return currentState.BlockBehavior(obj.Name)
 
 
 # Create the hooks for each of the special Behavior classes in the dictionary
-for k in _controller_commands:
-    for behaviourClass in _controller_commands[k].values():
+commands.RecreateControllerInputDict(get_pc())
+for k in commands.controller_commands:
+    for behaviourClass in commands.controller_commands[k].values():
         if behaviourClass != "Engine.Behavior_ClientConsoleCommand":
             add_hook(behaviourClass + ":ApplyBehaviorToContext", Type.PRE, "ControllerBinds." + behaviourClass, InputPlayerBehavior)
