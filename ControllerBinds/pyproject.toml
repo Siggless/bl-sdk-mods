@@ -4,9 +4,12 @@ version = "1.0.0"
 authors = [{name = "Siggles"}]
 description = """Adds controller combo binds for any mod keybinds, plus a menu button for the mod menu.
 \n
-All controller binds are set in <font color='#00ffe8'>this mod's</font> keybind options.
+All controller binds are set in this mod's keybind options.
 """
+
+[project.urls]
+Repository = "https://github.com/Siggless/bl-sdk-mods/tree/main/ControllerBinds"
 
 [tool.sdkmod]
 license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
-#supported_games = ["BL2", "TPS", "AoDK"]
+download = "https://github.com/Siggless/bl-sdk-mods/raw/refs/heads/main/ControllerBinds/ControllerBinds.sdkmod"
