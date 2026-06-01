@@ -1,5 +1,5 @@
 [project]
-name = "Weapon Effect Visuals"
+name = "WeaponEffectVisuals"
 version = "1.0"
 authors = [{name = "Siggles"}]
 description = """

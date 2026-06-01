@@ -1,5 +1,5 @@
 [project]
-name = "Grenade Mod Quick Switcher"
+name = "GrenadeModQuickSwitcher"
 version = "2.0.0"
 authors = [{name = "Siggles"}]
 description = "Adds a keybind that cycles through grenade mods marked as favourite.\n\nCycles in the order that items were added to the backpack, or unequipped."

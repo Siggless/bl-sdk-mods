@@ -1,5 +1,5 @@
 [project]
-name = "Jump To Level Challenges"
+name = "JumpToLevelChallenges"
 version = "2.1.0"
 authors = [{name = "Siggles"}]
 description = "Adds a keybind to the Challenges menu to jump to the current level's challenges, and an option to hide completed challenges."

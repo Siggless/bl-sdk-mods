@@ -1,5 +1,5 @@
 [project]
-name = "Badass Rank Lock"
+name = "BadassRankLock"
 version = "2.0.0"
 authors = [{name = "Siggles"}]
 description = "Prevents badass rank increasing, and non-level-specific challenge reward pop-ups from showing."
