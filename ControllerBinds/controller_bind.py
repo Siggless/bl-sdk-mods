@@ -62,7 +62,7 @@ class ControllerBind():
             description=bind.description,
             description_title=bind.description_title,
             is_hidden=bind.is_hidden,
-            on_change=self.OnBindChanged,
+            on_change_anytime=self.OnBindChanged,
         )
         opt.default_value = "None"  # For handle_reset_keybinds
         return opt

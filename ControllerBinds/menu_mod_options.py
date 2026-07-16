@@ -1,7 +1,8 @@
 from typing import Any, List
 from mods_base import EInputEvent, hook, Game
 from mods_base.hook import add_hook, remove_hook
-from mods_base.options import KeybindOption, KeybindType
+from mods_base.keybinds import KeybindType
+from mods_base.options import KeybindOption
 from unrealsdk.hooks import Type, Block
 from unrealsdk.logging import error
 from unrealsdk.unreal import BoundFunction, UObject, WrappedStruct
@@ -107,7 +108,7 @@ def GamepadRebind(obj: UObject, args: WrappedStruct, _3: Any, _4: BoundFunction)
     key_entry: WrappedStruct
     option: KeybindOption
     # Yeeaaaah should've made a proper ControllerBindOption but I'm just encoding to string here, to pass through KeybindOption
-    bind = ControllerBind(KeybindType("None", None))
+    bind = ControllerBind(KeybindType("None", None, lambda _: None))
 
     try:
         key_entry = obj.KeyBinds[idx]
