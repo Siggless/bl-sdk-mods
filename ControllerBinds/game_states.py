@@ -76,7 +76,7 @@ class Idle(InputState):
                         return (True, Held, key)
                 elif bind.IsNormalBind() and bind.buttonCombo[0] == key:
                         bind.Fire(event)
-                        return (True, Idle, key)
+                        return (False, Idle, key)
                         
         return (False, None, None)
 

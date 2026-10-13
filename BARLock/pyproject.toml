@@ -5,6 +5,6 @@ authors = [{name = "Siggles"}]
 description = "Prevents badass rank increasing, and non-level-specific challenge reward pop-ups from showing."
 
 [tool.sdkmod]
+name = "Badass Rank Lock"
 license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
-supported_games = ["BL2", "TPS", "AoDK"]
-download = "https://github.com/Siggless/bl-sdk-mods/raw/refs/heads/main/BARLock/BARLock.sdkmod"
+#supported_games = ["BL2", "TPS", "AoDK"]

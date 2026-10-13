@@ -1,0 +1,17 @@
+[project]
+name = "AmbientSpawns"
+version = "2.0.0"
+authors = [{name = "Siggles"}]
+description = """Periodically spawns random groups of enemies.
+\n
+Options for controlling the frequency and distance of spawns, and also whether custom groups of enemies can spawn.
+"""
+dependencies = [
+  'package_loader >= 1.0',
+  'ue_timers >= 1.0',
+]
+
+[tool.sdkmod]
+name = "Ambient Spawns"
+license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
+download = "https://github.com/Siggless/bl-sdk-mods/raw/refs/heads/main/AmbientSpawns/AmbientSpawns.sdkmod"

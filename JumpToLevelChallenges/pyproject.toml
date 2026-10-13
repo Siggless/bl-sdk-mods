@@ -5,5 +5,6 @@ authors = [{name = "Siggles"}]
 description = "Adds a keybind to the Challenges menu to jump to the current level's challenges, and an option to hide completed challenges."
 
 [tool.sdkmod]
+name = "Jump To Level Challenges"
 license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
 download = "https://github.com/Siggless/bl-sdk-mods/raw/refs/heads/main/JumpToLevelChallenges/JumpToLevelChallenges.sdkmod"

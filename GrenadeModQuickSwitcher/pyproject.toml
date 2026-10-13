@@ -5,5 +5,6 @@ authors = [{name = "Siggles"}]
 description = "Adds a keybind that cycles through grenade mods marked as favourite.\n\nCycles in the order that items were added to the backpack, or unequipped."
 
 [tool.sdkmod]
+name = "Grenade Mod Quick Switcher"
 license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
 download = "https://github.com/Siggless/bl-sdk-mods/raw/refs/heads/main/GrenadeModQuickSwitcher/GrenadeModQuickSwitcher.sdkmod"

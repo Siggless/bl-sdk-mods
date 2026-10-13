@@ -7,4 +7,6 @@ Adjusts a weapon's material whilst its random skill is active (e.g. Ogre, Grog N
 """
 
 [tool.sdkmod]
+name = "Weapon Effect Visuals"
 license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
+download = "https://github.com/Siggless/bl-sdk-mods/raw/refs/heads/main/WeaponEffectVisuals/WeaponEffectVisuals.sdkmod"

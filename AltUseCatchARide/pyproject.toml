@@ -9,6 +9,7 @@ Options to teleport to vehicle on spawn, choose a vehicle family (including DLC 
 """
 
 [tool.sdkmod]
+name = "Alt Use Catch-a-Ride"
 license = {name = "GPL3", url = "https://choosealicense.com/licenses/gpl-3.0/" }
 supported_games = ["BL2", "TPS", "AoDK"]
 download = "https://github.com/Siggless/bl-sdk-mods/raw/refs/heads/main/AltUseCatchARide/AltUseCatchARide.sdkmod"

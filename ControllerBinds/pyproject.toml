@@ -1,6 +1,6 @@
 [project]
 name = "ControllerBinds"
-version = "1.0.1"
+version = "1.0.2"
 authors = [{name = "Siggles"}]
 description = """Adds controller combo binds for any mod keybinds, plus a menu button for the mod menu.
 \n

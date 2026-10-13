@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.0.0
++ Updated to SDK v3.8.
++ Uses package_loader and ue_timers library mods.
+
 ## v1.3.1
 + Fixed broken bone texture for real this time.
 + Reinstated Deputy Winger.
